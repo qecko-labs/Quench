@@ -167,31 +167,32 @@ func Build(ctx context.Context, buildCtx BuildContext, cfg *config.Config) Build
 			libs = cfg.Libs
 
 			if cfg.IgnoreFile != "" {
-				var candidate string
+				var candidates []string
 				if len(dirs) > 0 {
-					candidate = filepath.Join(dirs[0], cfg.IgnoreFile)
-					if _, err := os.Stat(candidate); err == nil {
-						if buildCtx.Verbose {
-							stdio.WriteFmt(1, "Loading ignore file: %s\n", candidate)
-						}
-						if ignoreMatcher, err = ignore.LoadIgnoreFile(candidate); err != nil && buildCtx.Verbose {
-							stdio.WriteFmt(1, "warning: cannot load ignore file %s: %v\n", candidate, err)
-						} else if buildCtx.Verbose && ignoreMatcher != nil {
-							stdio.WriteFmt(1, "Successfully loaded ignore file: %s\n", candidate)
-						}
-					}
+					candidates = append(candidates, filepath.Join(dirs[0], cfg.IgnoreFile))
 				}
-				if ignoreMatcher == nil {
-					if _, err := os.Stat(cfg.IgnoreFile); err == nil {
-						if buildCtx.Verbose {
-							stdio.WriteFmt(1, "Loading ignore file: %s\n", cfg.IgnoreFile)
-						}
-						if ignoreMatcher, err = ignore.LoadIgnoreFile(cfg.IgnoreFile); err != nil && buildCtx.Verbose {
-							stdio.WriteFmt(1, "warning: cannot load ignore file %s: %v\n", cfg.IgnoreFile, err)
-						} else if buildCtx.Verbose && ignoreMatcher != nil {
-							stdio.WriteFmt(1, "Successfully loaded ignore file: %s\n", cfg.IgnoreFile)
-						}
+				candidates = append(candidates, cfg.IgnoreFile)
+				if cfg.IgnoreFile == ".qhignore" {
+					candidates = append(candidates, filepath.Join(dirs[0], ".fzignore"))
+					candidates = append(candidates, ".fzignore")
+				}
+				var err error
+				for _, candidate := range candidates {
+					if candidate == "" {
+						continue
 					}
+					if _, err = os.Stat(candidate); err != nil {
+						continue
+					}
+					if buildCtx.Verbose {
+						stdio.WriteFmt(1, "Loading ignore file: %s\n", candidate)
+					}
+					if ignoreMatcher, err = ignore.LoadIgnoreFile(candidate); err != nil && buildCtx.Verbose {
+						stdio.WriteFmt(1, "warning: cannot load ignore file %s: %v\n", candidate, err)
+					} else if buildCtx.Verbose && ignoreMatcher != nil {
+						stdio.WriteFmt(1, "Successfully loaded ignore file: %s\n", candidate)
+					}
+					break
 				}
 			}
 		}
