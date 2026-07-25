@@ -13,12 +13,12 @@ This package—and indeed any other package—is released under the GPLv3 open-s
 
 How to build?
 
-To build the project locally on your machine, use the `build.sh` script, which will compile the fz source code for you. Afterward, move it to your directory:
+To build the project locally on your machine, use the `build.sh` script, which will compile the qh source code for you. Afterward, move it to your directory:
 
 chmod +x build.sh
 ./build.sh
 # Or 
 bash build.sh
 # After
-sudo mv fz /usr/local/bin
-fz --version
+sudo mv qh /usr/local/bin
+qh --version
