@@ -173,8 +173,8 @@ func TestCmdClean(t *testing.T) {
 	dir := t.TempDir()
 	state.SourcePath = dir
 	state.SourceType = "dir"
-	objDir := filepath.Join(dir, ".fz_objs")
-	cacheDir := filepath.Join(dir, ".fz_cache")
+	objDir := filepath.Join(dir, ".qh_objs")
+	cacheDir := filepath.Join(dir, ".qh_cache")
 	if err := os.MkdirAll(objDir, 0o755); err != nil {
 		t.Fatalf("failed to create directory %s: %v", objDir, err)
 	}
