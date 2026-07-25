@@ -25,7 +25,7 @@ import (
 func TestGenerateManPage(t *testing.T) {
 	version := "1.7.1"
 	page := GenerateManPage(version)
-	if !strings.Contains(page, ".TH fz") {
+	if !strings.Contains(page, ".TH qh") {
 		t.Error("missing .TH header")
 	}
 	if !strings.Contains(page, version) {
