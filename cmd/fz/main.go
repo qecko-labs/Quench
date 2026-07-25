@@ -37,8 +37,6 @@ import (
 	"github.com/forgezero-cli/ForgeZero/internal/utils"
 )
 
-
-
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -93,7 +91,7 @@ func main() {
 			stdio.WriteFmt(2, "init failed: %v\n", err)
 			os.Exit(1)
 		}
-		stdio.WriteFmt(1, "%s\n", "project initialized. edit .fz.toml to configure ur build.")
+		stdio.WriteFmt(1, "%s\n", "project initialized. edit .qh.toml to configure your build.")
 		return
 	}
 
