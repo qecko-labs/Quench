@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	VersionCodename = "Forge"
+	VersionCodename = "Quench"
 )
 
 var VersionCore = "unknown"
@@ -35,7 +35,7 @@ var BuildDate = "unknown"
 func VersionText() string {
 	var b strings.Builder
 	b.Grow(180)
-	b.WriteString("ForgeZero 2.0 (core ")
+	b.WriteString("Quench 2.0 (core ")
 	b.WriteString(VersionCore)
 	b.WriteString(") [")
 	b.WriteString(VersionCodename)
@@ -45,7 +45,7 @@ func VersionText() string {
 	b.WriteString(runtime.GOOS)
 	b.WriteByte('/')
 	b.WriteString(runtime.GOARCH)
-	b.WriteString(") · GPLv3 · (c) ForgeZero-cli")
+	b.WriteString(") · GPLv3 · (c) Quench-cli")
 	return b.String()
 }
 func OutputVersion() {
