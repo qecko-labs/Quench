@@ -4,7 +4,7 @@ set -euo pipefail
 TEST_DIR="benchmark_test"
 NUM_MODULES=2500
 
-echo "🛠️  ForgeZero vs NASM/Make Benchmark Script"
+echo "🛠️  Quench vs NASM/Make Benchmark Script"
 echo "=========================================="
 
 for cmd in hyperfine nasm ld make; do
@@ -14,7 +14,7 @@ for cmd in hyperfine nasm ld make; do
   }
 done
 if [[ ! -x "./fzt" ]]; then
-  echo "❌ ./fzt not found or not executable. Run this from ForgeZero root."
+  echo "❌ ./fzt not found or not executable. Run this from Quench root."
   exit 1
 fi
 
@@ -61,9 +61,9 @@ echo "📝 Generating Makefile..."
 echo "🔍 Verifying builds (dry-run)..."
 cd "$TEST_DIR"
 
-echo "  → ForgeZero..."
+echo "  → Quench..."
 if ! ../fzt -dir . -out fz_out -verbose; then
-  echo "❌ ForgeZero build failed. Check output above."
+  echo "❌ Quench build failed. Check output above."
   exit 1
 fi
 rm -rf fz_out .fz_objs
@@ -83,7 +83,7 @@ cd "$TEST_DIR"
 
 hyperfine --warmup 3 \
   --prepare "make clean && rm -rf .fz_objs fz_out" \
-  "fz -p perfomance -dir . -out fz_out -toolchain clang -j $(nproc)" \
+  "qh -p perfomance -dir . -out fz_out -toolchain clang -j $(nproc)" \
   "make -j $(nproc)"
 
 cd ..
