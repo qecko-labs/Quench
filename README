@@ -1,6 +1,6 @@
 Quench
 
-DOCUMENTATION: https://forgezero-cli.github.io/forgezero-docs/
+DOCUMENTATION: https://qecko-labs.github.io/quench-docs/
 
 =========
 
@@ -22,8 +22,8 @@ If you want to control the box — welcome.
 
 ## Quick Start
 
-- Report a bug: https://github.com/forgezero-cli/Quench/issues
-- Get the latest release: https://github.com/forgezero-cli/Quench
+- Report a bug: https://github.com/qecko-labs/Quench/issues
+- Get the latest release: https://github.com/qecko-labs/Quench
 - Build Quench: See INSTALL
 - Build your project with qh: See QUICKSTART
 
@@ -132,8 +132,8 @@ Full benchmark methodology and reproduction steps: PERFORMANCE
 
 # Communication and Support
 
-- Issues: https://github.com/forgezero-cli/Quench/issues
-- Source: https://github.com/forgezero-cli/Quench
+- Issues: https://github.com/qecko-labs/Quench/issues
+- Source: https://github.com/qecko-labs/Quench
 - Author: alexvoste <https://github.com/alexvoste>
 - License: GPLv3 - see LICENSE
 
