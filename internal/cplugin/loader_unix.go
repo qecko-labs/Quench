@@ -3,7 +3,7 @@
 // +build cgo
 
 /*
- *   Copyright (c) 2026 ForgeZero-cli
+ *   Copyright (c) 2026 qecko-labs
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by

@@ -1,5 +1,5 @@
 /*
- *   Copyright (c) 2026 ForgeZero-cli
+ *   Copyright (c) 2026 qecko-labs
  */
 
 package assembler
