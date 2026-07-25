@@ -7,10 +7,10 @@
 WHAT THIS IS
 
 This is a JSON catalog of C/C++ open-source libraries and system
-components of the ForgeZero infactructure.
+components of the Quench infactructure.
 
 WHO IS THIS FOR?
-For FZ users and sys devs who need fast, reliable, and secure lib provisioning for their specific tasks - the package are automatically vendored into the config.
+For QH users and sys devs who need fast, reliable, and secure lib provisioning for their specific tasks - the package are automatically vendored into the config.
 
 Tags marked "master" have no strict release tag upstream; pin
 them to a specific commit before using in production.
@@ -355,7 +355,7 @@ CLI11        - Feature-rich command line parser for modern C++.
  NOTES
 ================================================================
 
-- If you are unsure about a particular package, please verify it directly on GitHub. You are solely responsible for any packages downloaded from catalog.json(fz pm catalog); we merely provide a convenient installation mechanism. There are you no hidden secrets or, worse, fraudulent content - all package data is current as of 2026. 
+- If you are unsure about a particular package, please verify it directly on GitHub. You are solely responsible for any packages downloaded from catalog.json(qh pm catalog); we merely provide a convenient installation mechanism. There are you no hidden secrets or, worse, fraudulent content - all package data is current as of 2026. 
 
 THANKS FOR USING FZPKG
 
