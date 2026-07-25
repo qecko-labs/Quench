@@ -496,7 +496,7 @@ func (c *Config) fillDefaults() {
 		c.Isolation = IsolationNone
 	}
 	if c.IgnoreFile == "" {
-		c.IgnoreFile = ".fzignore"
+		c.IgnoreFile = ".qhignore"
 	}
 	if c.CacheMode == "" {
 		c.CacheMode = CacheModeDisk
@@ -576,7 +576,7 @@ func (c *Config) Validate() error {
 		return NewErrorDetail(ErrorInvalidOverride, "cache_ram_mb must be non-negative")
 	}
 	if c.IgnoreFile == "" {
-		c.IgnoreFile = ".fzignore"
+		c.IgnoreFile = ".qhignore"
 	}
 	if len(c.BuildRules) > 0 {
 		outputs := make(map[string]struct{}, len(c.BuildRules)*2)
@@ -1355,7 +1355,7 @@ func (c *Config) mergeISO(other *ISOConfig) {
 }
 
 func FindConfigs() (system, user, local string) {
-	systemPaths := []string{"/etc/github.com/forgezero-cli/ForgeZero/config.toml", "/etc/fz.toml", "/etc/github.com/forgezero-cli/ForgeZero/config.yaml", "/etc/fz.yaml"}
+	systemPaths := []string{"/etc/github.com/forgezero-cli/ForgeZero/config.toml", "/etc/qh.toml", "/etc/fz.toml", "/etc/github.com/forgezero-cli/ForgeZero/config.yaml", "/etc/qh.yaml", "/etc/fz.yaml"}
 	for _, p := range systemPaths {
 		if _, err := os.Stat(p); err == nil {
 			system = p
@@ -1365,8 +1365,12 @@ func FindConfigs() (system, user, local string) {
 	home, err := os.UserHomeDir()
 	if err == nil {
 		userPaths := []string{
+			filepath.Join(home, ".config", "qh", "config.toml"),
+			filepath.Join(home, ".qh.toml"),
 			filepath.Join(home, ".config", "fz", "config.toml"),
 			filepath.Join(home, ".fz.toml"),
+			filepath.Join(home, ".config", "qh", "config.yaml"),
+			filepath.Join(home, ".qh.yaml"),
 			filepath.Join(home, ".config", "fz", "config.yaml"),
 			filepath.Join(home, ".fz.yaml"),
 		}
@@ -1377,7 +1381,7 @@ func FindConfigs() (system, user, local string) {
 			}
 		}
 	}
-	localPaths := []string{".fz.toml", "fz.toml", ".fz.yaml", "fz.yaml", ".fz.yml", "fz.yml"}
+	localPaths := []string{".qh.toml", "qh.toml", ".fz.toml", "fz.toml", ".qh.yaml", "qh.yaml", ".fz.yaml", "fz.yaml", ".qh.yml", "qh.yml", ".fz.yml", "fz.yml"}
 	for _, p := range localPaths {
 		if _, err := os.Stat(p); err == nil {
 			local = p
@@ -1401,9 +1405,9 @@ type loadResult struct {
 
 func LoadMerged(explicitPath string) (*Config, error) {
 	if explicitPath == "" {
-		if env := os.Getenv("FZ_CONFIG_PATH"); env != "" {
+		if env := os.Getenv("QH_CONFIG_PATH"); env != "" {
 			explicitPath = env
-		} else if env := os.Getenv("FZ_CONFIG"); env != "" {
+		} else if env := os.Getenv("QH_CONFIG"); env != "" {
 			explicitPath = env
 		}
 	}
@@ -1470,7 +1474,13 @@ func LoadMerged(explicitPath string) (*Config, error) {
 }
 
 func DefaultConfigPath() string {
+	if env := os.Getenv("QH_CONFIG_PATH"); env != "" {
+		return env
+	}
 	if env := os.Getenv("FZ_CONFIG_PATH"); env != "" {
+		return env
+	}
+	if env := os.Getenv("QH_CONFIG"); env != "" {
 		return env
 	}
 	if env := os.Getenv("FZ_CONFIG"); env != "" {
@@ -1491,7 +1501,7 @@ func GenerateFromScan(root string) (*Config, error) {
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if name == ".git" || name == ".fz_objs" || name == "build" || name == "vendor" {
+			if name == ".git" || name == ".qh_objs" || name == "build" || name == "vendor" {
 				return filepath.SkipDir
 			}
 			return nil
