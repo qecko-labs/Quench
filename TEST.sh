@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) 2026 ForgeZero-cli
+# Copyright (c) 2026 Quench-cli
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
 
