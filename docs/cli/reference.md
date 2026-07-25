@@ -1,6 +1,6 @@
 # CLI reference guide
 
-The following flags are the most important ones to understand when working with ForgeZero.
+The following flags are the most important ones to understand when working with Quench.
 
 ## Build selection
 
