@@ -1,6 +1,6 @@
-# ForgeZero Documentation
+# Quench Documentation
 
-ForgeZero is a build system that favors explicit control over hidden magic. It is designed for engineers who want deterministic builds, predictable toolchain wiring, and fast iteration without surrendering the ability to understand what the compiler and linker are doing.
+Quench is a build system that favors explicit control over hidden magic. It is designed for engineers who want deterministic builds, predictable toolchain wiring, and fast iteration without surrendering the ability to understand what the compiler and linker are doing.
 
 This documentation is organized around the actual implementation structure of the project:
 
@@ -13,11 +13,11 @@ This documentation is organized around the actual implementation structure of th
 
 ## Philosophy
 
-ForgeZero does not try to become a black box. Its guiding principles are:
+Quench does not try to become a black box. Its guiding principles are:
 
 1. Explicitness over magic.
 2. Deterministic builds over heuristics.
 3. Fast iteration over unnecessary indirection.
 4. Security-conscious file handling and toolchain control.
 
-If you want a build system that stays close to the compiler and linker, ForgeZero is designed for you.
+If you want a build system that stays close to the compiler and linker, Quench is designed for you.
