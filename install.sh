@@ -5,7 +5,7 @@ OS=""
 ARCH=""
 VER="latest"
 FORCE=0
-REPO="forgezero-cli/ForgeZero"
+REPO="forgezero-cli/Quench"
 DRY=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -38,7 +38,7 @@ if [ -z "$ARCH" ]; then
     *) ARCH=amd64;;
   esac
 fi
-BIN_NAME="fz"
+BIN_NAME="qh"
 if [ "$OS" = "windows" ]; then
   BIN_FILE="${BIN_NAME}-${OS}-${ARCH}.exe"
 else
