@@ -245,7 +245,7 @@ func scanTree(root string) (dirs, files int, err error) {
 		}
 		for _, ent := range entries {
 			name := ent.Name()
-			if name == ".git" || name == ".fz_objs" || name == ".fz_cache" || name == "vendor" {
+			if name == ".git" || name == ".qh_objs" || name == ".qh_cache" || name == "vendor" {
 				continue
 			}
 			path := filepath.Join(dir, name)
