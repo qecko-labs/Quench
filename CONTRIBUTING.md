@@ -1,8 +1,8 @@
-# Contributing to fz(ForgeZero)
+# Contributing to qh(Quench)
 
 > The assembly swiss army knife — built with discipline, shipped with intent.
 
-Thank you for considering a contribution to `fz`. This document establishes the standards and workflow expected of all contributors. Please read it in full before opening issues or submitting pull requests.
+Thank you for considering a contribution to `qh`. This document establishes the standards and workflow expected of all contributors. Please read it in full before opening issues or submitting pull requests.
 
 ---
 
@@ -31,7 +31,7 @@ All contributors are expected to engage professionally and constructively. Disre
 
 Contributions are welcome in the following forms:
 
-- **Bug reports** — reproducible, well-documented issues filed via [GitHub Issues](https://github.com/forgezero-cli/ForgeZero/issues)
+- **Bug reports** — reproducible, well-documented issues filed via [GitHub Issues](https://github.com/forgezero-cli/Quench/issues)
 - **Feature proposals** — opened as issues before any implementation begins
 - **Pull requests** — bug fixes, features, refactors, or documentation improvements
 - **Documentation** — corrections, clarifications, and examples
@@ -65,8 +65,8 @@ staticcheck ./...
 ### Clone
 
 ```bash
-git clone https://github.com/forgezero-cli/ForgeZero.git
-cd ForgeZero
+git clone https://github.com/forgezero-cli/Quench.git
+cd Quench
 ```
 
 ### Install system dependencies
@@ -86,7 +86,7 @@ sudo apt install clang
 ### Build
 
 ```bash
-go build -o fz ./cmd/fz
+go build -o qh ./cmd/qh
 ```
 
 ### Run the full test suite
@@ -176,9 +176,9 @@ go test -v ./internal/your_feature_name/...
 # Run a specific test function by name
 go test -v -run TestFunctionName ./internal/your_feature_name/...
 
-or ./fz -alex
+or ./qh -alex
 
-ForgeZero Test Runner (v4.8.0-dev)
+Quench Test Runner (v4.8.0-dev)
 ────────────────────────────────────────────────────────────
   [✓] Environment Check (doctor) [PASS] (36 ms)
   [✓] Unit Tests (go test -race) [PASS] (8090 ms)
@@ -186,7 +186,7 @@ ForgeZero Test Runner (v4.8.0-dev)
   [✓] Static Analysis (go vet) [PASS] (397 ms)
   [✓] Linter (staticcheck) [PASS] (0 ms)
   [✓] Code Formatting (go fmt) [PASS] (94 ms)
-  [✓] Build Test (fz build) [PASS] (1468 ms)
+  [✓] Build Test (qh build) [PASS] (1468 ms)
   [✓] Gloria Compilation [PASS] (2 ms)
   [✓] HADES Codegen [PASS] (0 ms)
   [✓] Integration Tests [PASS] (178 ms)
@@ -253,7 +253,7 @@ Exception: Loop indices (`i`, `j`, `k`) are allowed for short, simple loops.
 
 ## Zero Allocation Policy
 
-ForgeZero targets performance-critical environments. Avoid allocations where possible.
+Quench targets performance-critical environments. Avoid allocations where possible.
 
 ### Forbidden Patterns (if avoidable)
 
@@ -324,7 +324,7 @@ To protect the project's long-term maintainability and code quality, the followi
 
 - **No AI-generated code** — code that is obviously machine-generated without human review will be rejected. We can tell.
 - **Plagiarism is forbidden** — copying code or documentation from other contributors (or from external sources) without attribution is grounds for immediate PR closure and a permanent ban.
-- **You must build and test locally** — if you cannot build `fz` on your machine, do not open a PR. Figure out the build process first.
+- **You must build and test locally** — if you cannot build `qh` on your machine, do not open a PR. Figure out the build process first.
 - **No "drive-by" PRs** — every PR must include tests and documentation (if applicable). Skeleton PRs without content will be closed.
 
 Violations will be reported to GitHub if repeated.
@@ -394,7 +394,7 @@ A good feature proposal includes:
 
 When filing a bug report, include the following:
 
-- **`fz` version** — output of `fz -version`
+- **`qh` version** — output of `qh -version`
 - **Operating system and architecture** — e.g. `Linux amd64`, `macOS arm64`
 - **Steps to reproduce** — minimal, complete, and unambiguous
 - **Expected behaviour** — what should have happened
@@ -410,6 +410,6 @@ By submitting a contribution, you agree that your work will be licensed under th
 
 ---
 
-*Thank you for taking the time to contribute to `fz`.*
+*Thank you for taking the time to contribute to `qh`.*
 
 **(c) alexvoste**
