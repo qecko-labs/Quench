@@ -1,4 +1,4 @@
-# 🦎 FORGEZERO INSTALLATION ON YOUR SYSTEM — USER MANUAL
+# 🦎 QUENCH INSTALLATION ON YOUR SYSTEM — USER MANUAL
 
 **For installation on various systems, please either use the pre-built binaries available in the releases, or build from source.**
 
@@ -17,21 +17,21 @@ yay -S forgezero-git
 ```bash
 git clone https://github.com/forgezero-cli/forgezero.git
 cd forgezero
-bash build.sh && sudo mv fz /usr/local/bin
+bash build.sh && sudo mv qh /usr/local/bin
 ```
 
-## 📒 Additional installation option for ForgeZero
+## 📒 Additional installation option for Quench
 
 You may use the provided installer script, which was specifically written to eliminate the routine effort of compiling from source:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/forgezero-cli/ForgeZero/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/forgezero-cli/Quench/main/install.sh | sh
 ```
 
 > Note: Ensure that the `curl` utility is installed on your system prior to running this command.
 
-📥 If you encounter any errors during installation (which should not occur under normal circumstances), please report them to us via Issues: https://github.com/forgezero-cli/ForgeZero/issues
+📥 If you encounter any errors during installation (which should not occur under normal circumstances), please report them to us via Issues: https://github.com/forgezero-cli/Quench/issues
 
-_If you are a contributor and intend to work with ForgeZero, please ensure that the following utilities are installed on your system for successful test execution (e.g., go test -v ./... and related commands): gcc, clang, nasm, fasm, and zig._
+_If you are a contributor and intend to work with Quench, please ensure that the following utilities are installed on your system for successful test execution (e.g., go test -v ./... and related commands): gcc, clang, nasm, fasm, and zig._
 
 In the event that these utilities are not available, some tests may fail. If your goal is to test only a specific added module or component, you may limit testing to that particular package rather than running the full test suite.
