@@ -249,7 +249,7 @@ func shouldSkipDir(root, path string) bool {
 	}
 	first := strings.Split(rel, string(os.PathSeparator))[0]
 	switch first {
-	case ".git", ".fz_objs", ".fz_cache", "vendor", "release", "node_modules":
+	case ".git", ".qh_objs", ".qh_cache", "vendor", "release", "node_modules":
 		return true
 	}
 	return false
