@@ -651,7 +651,7 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 					if !m.Match(matcherPath(src)) {
 						filtered = append(filtered, src)
 					} else if verbose {
-						_, _ = os.Stdout.WriteString("Ignoring file (from .fzignore): " + src + "\n")
+						_, _ = os.Stdout.WriteString("Ignoring file (from .qhignore): " + src + "\n")
 					}
 				}
 				srcFiles = filtered
@@ -659,7 +659,7 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 		}
 	}
 
-	objDir := joinPath(filepath.Dir(outBin), ".fz_objs")
+	objDir := joinPath(filepath.Dir(outBin), ".qh_objs")
 	generatedIncludeDir := joinPath(objDir, "include")
 	if err := utils.SecureMkdirAll(objDir); err != nil {
 		return nil, errors.New("cannot create obj dir: " + err.Error())
@@ -961,7 +961,7 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 	}
 	sort.Strings(srcFiles)
 
-	cacheDir := joinPath(filepath.Dir(outBin), ".fz_cache")
+	cacheDir := joinPath(filepath.Dir(outBin), ".qh_cache")
 
 	effectiveCache := determineCacheMode(cfg, noCache)
 	var hashCache map[string][32]byte
@@ -1377,11 +1377,11 @@ func removeIfExists(path string, isDir bool, verbose bool) error {
 }
 
 func CleanDir(dir string, verbose bool) error {
-	objDir := joinPath(dir, ".fz_objs")
+	objDir := joinPath(dir, ".qh_objs")
 	if err := removeIfExists(objDir, true, verbose); err != nil {
 		return err
 	}
-	cacheDir := joinPath(dir, ".fz_cache")
+	cacheDir := joinPath(dir, ".qh_cache")
 	if err := removeIfExists(cacheDir, true, verbose); err != nil {
 		return err
 	}
