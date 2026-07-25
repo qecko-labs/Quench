@@ -119,7 +119,7 @@ func TestFullCliFlowInitBuildSeal(t *testing.T) {
 	linker.SetRunner(fakeCmdRunner{})
 	defer linker.ResetRunner()
 
-	initOutput := runFzArgs(t, []string{"fz", "-init"})
+	initOutput := runFzArgs(t, []string{"qh", "-init"})
 	if !strings.Contains(initOutput, "project initialized") {
 		t.Fatalf("unexpected init output: %s", initOutput)
 	}
@@ -129,7 +129,7 @@ func TestFullCliFlowInitBuildSeal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	buildOutput := runFzArgs(t, []string{"fz", "-dir", ".", "-out", "app", "-mode", "raw", "-no-sanitize", "-keep-obj", "-no-scripts"})
+	buildOutput := runFzArgs(t, []string{"qh", "-dir", ".", "-out", "app", "-mode", "raw", "-no-sanitize", "-keep-obj", "-no-scripts"})
 	if !strings.Contains(buildOutput, "Built: app") {
 		t.Fatalf("unexpected build output: %s", buildOutput)
 	}
@@ -137,13 +137,13 @@ func TestFullCliFlowInitBuildSeal(t *testing.T) {
 		t.Fatalf("binary not created: %v", err)
 	}
 
-	versionOutput := runFzArgs(t, []string{"fz", "version"})
+	versionOutput := runFzArgs(t, []string{"qh", "version"})
 
-	if !strings.Contains(versionOutput, "ForgeZero v") {
+	if !strings.Contains(versionOutput, "Quench") {
 		t.Fatalf("unexpected version banner: %s", versionOutput)
 	}
 
-	sealOutput := runFzArgs(t, []string{"fz", "--seal", "-no-scripts"})
+	sealOutput := runFzArgs(t, []string{"qh", "--seal", "-no-scripts"})
 	if !strings.Contains(sealOutput, "seal written") {
 		t.Fatalf("unexpected seal output: %s", sealOutput)
 	}
