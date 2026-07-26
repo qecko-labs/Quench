@@ -1,4 +1,6 @@
 # Tests Artefacts 
+.qh_cache/
+.qh_objs/
 redis-server
 release-note.md
 # Just testing new idea
