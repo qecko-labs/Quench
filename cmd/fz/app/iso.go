@@ -29,7 +29,6 @@ func ISORequested(flags *cli.Flags, cfg *config.Config) bool {
 	}
 	return cfg != nil && cfg.ISO.Enabled
 }
-
 func BuildISOOptions(flags *cli.Flags, cfg *config.Config) core.Options {
 	var ic config.ISOConfig
 	if cfg != nil {
