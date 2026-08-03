@@ -63,11 +63,14 @@ func (q *MPSC) Enqueue(v any) bool {
 }
 
 func (q *MPSC) Dequeue() (any, bool) {
+	if q == nil || len(q.slots) == 0 {
+		return nil, false
+	}
 	head := q.head
 	idx := head & q.mask
 	slot := &q.slots[idx]
 	seq := atomic.LoadUint64(&slot.sequence)
-	if seq != head+1 {
+	if seq != head+1 || slot.val == nil {
 		return nil, false
 	}
 	v := *(*any)(slot.val)
