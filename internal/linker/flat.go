@@ -137,6 +137,32 @@ func copyFileHot(src, dst string) error {
 		_ = closeHot(sfd)
 		return err
 	}
+	if err := copySpliceHot(sfd, dfd); err != nil {
+		_ = closeHot(dfd)
+		_ = closeHot(sfd)
+		_ = unlinkHot(dst)
+		return copyFileHotRW(src, dst, mode)
+	}
+	if err := closeHot(dfd); err != nil {
+		_ = closeHot(sfd)
+		return err
+	}
+	if err := closeHot(sfd); err != nil {
+		return err
+	}
+	return nil
+}
+
+func copyFileHotRW(src, dst string, mode uint32) error {
+	sfd, err := openHot(src, syscall.O_RDONLY, 0)
+	if err != nil {
+		return err
+	}
+	dfd, err := openHot(dst, syscall.O_WRONLY|syscall.O_CREAT|syscall.O_TRUNC, mode)
+	if err != nil {
+		_ = closeHot(sfd)
+		return err
+	}
 	var buf [65536]byte
 	for {
 		rn, rerr := readHot(sfd, buf[:])
@@ -172,6 +198,56 @@ func copyFileHot(src, dst string) error {
 		return err
 	}
 	return nil
+}
+
+func copySpliceHot(sfd, dfd int) error {
+	var pipefd [2]int
+	if err := pipe2Hot(pipefd[:], syscall.O_CLOEXEC); err != nil {
+		return err
+	}
+	defer func() {
+		_ = closeHot(pipefd[0])
+		_ = closeHot(pipefd[1])
+	}()
+	for {
+		n, err := spliceHot(sfd, pipefd[1], 1<<20)
+		if err != nil {
+			if err == syscall.EINTR {
+				continue
+			}
+			return err
+		}
+		if n == 0 {
+			break
+		}
+		written := 0
+		for written < n {
+			wn, err := spliceHot(pipefd[0], dfd, n-written)
+			if err != nil {
+				if err == syscall.EINTR {
+					continue
+				}
+				return err
+			}
+			written += wn
+		}
+	}
+	return nil
+}
+
+func pipe2Hot(fds []int, flags int) error {
+	if len(fds) != 2 {
+		return syscall.EINVAL
+	}
+	return syscall.Pipe2(fds, flags)
+}
+
+func spliceHot(rfd int, wfd int, length int) (int, error) {
+	r, err := syscall.Splice(rfd, nil, wfd, nil, length, 0)
+	if err != nil {
+		return 0, err
+	}
+	return int(r), nil
 }
 
 const atFDCWD = ^uintptr(99)
