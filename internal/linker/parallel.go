@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/forgezero-cli/ForgeZero/internal/drivers/fo"
@@ -110,29 +111,34 @@ func LinkMultipleParallel(ctx context.Context, objFiles []string, bin string, ve
 	}
 	targets = append(targets, LinkTarget{Name: bin, Objs: finalObjs})
 
-	pool := fo.InitGlobalPool(jobs)
+	pool := fo.NewPool(jobs)
 	defer pool.Stop()
 
-	errCh := make(chan error, len(targets)-1)
 	var wg sync.WaitGroup
+	var firstErr atomic.Value
+	tasks := make([]fo.Task, 0, len(targets)-1)
 	for i := 0; i < len(targets)-1; i++ {
 		target := targets[i]
-		task := fo.Task{Fn: func(arg unsafe.Pointer) error {
+		targetCopy := target
+		targetPtr := new(LinkTarget)
+		*targetPtr = targetCopy
+		tasks = append(tasks, fo.Task{Fn: func(arg unsafe.Pointer) error {
 			defer wg.Done()
 			linkTarget := (*LinkTarget)(arg)
 			if err := linkPartition(ctx, linkTarget, mode, verbose); err != nil {
-				errCh <- err
+				firstErr.Store(err)
 				return err
 			}
 			return nil
-		}, Arg: unsafe.Pointer(&target)}
-		wg.Add(1)
-		pool.Submit(task)
+		}, Arg: unsafe.Pointer(targetPtr)})
+	}
+	wg.Add(len(tasks))
+	if !pool.SubmitBatch(tasks) {
+		return errors.New("failed to submit linker tasks")
 	}
 	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		return err
+	if v := firstErr.Load(); v != nil {
+		return v.(error)
 	}
 
 	finalTarget := targets[len(targets)-1]
