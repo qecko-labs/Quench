@@ -1,6 +1,93 @@
 # CHANGELOG Quench
 
-# UNRELEASED
+## [UNRELEASED] — 2026-08-03
+
+### Added
+
+- **Low-level concurrency primitives** – new internal packages for zero‑allocation, lock‑free communication and synchronization:
+  - `internal/drivers/chan/mpsc.go` – multi‑producer, single‑consumer lock‑free queue.  
+    ([c073fc7](https://github.com/qecko-labs/Quench/commit/c073fc7))
+  - `internal/drivers/chan/spsc.go` – single‑producer, single‑consumer ring buffer.  
+    ([f6286ee](https://github.com/qecko-labs/Quench/commit/f6286ee))
+  - `internal/drivers/sync/mutex.go` – spinlock implementation using atomic CAS + `runtime.Gosched()`.  
+    ([d690bc6](https://github.com/qecko-labs/Quench/commit/d690bc6))
+  - `internal/drivers/sync/once.go` – `sync.Once` variant backed by a spinlock.  
+    ([43c2258](https://github.com/qecko-labs/Quench/commit/43c2258))
+  - `internal/drivers/thread/pool.go` – lightweight thread pool with work‑stealing.  
+    ([70e2cc3](https://github.com/qecko-labs/Quench/commit/70e2cc3))
+  - `internal/drivers/thread/pool_test.go` – tests and benchmarks for the thread pool.  
+    ([e8c291c](https://github.com/qecko-labs/Quench/commit/e8c291c))
+
+- **Benchmarks for `fo`** – `internal/drivers/fo/bench_test.go` measures pool submit and work‑stealing performance.  
+  ([d7a4098](https://github.com/qecko-labs/Quench/commit/d7a4098))
+
+### Changed
+
+- **`internal/drivers/fo/pool.go`** – reimplemented on top of the new primitives:
+  - Uses `thread.Pool` for worker goroutines.
+  - Uses `chan.MPSC` as a fallback public queue.
+  - Uses `sync.Pool` for `Task` reuse.
+  - Adds `SubmitBatch` and `reserveBatch` for bulk task submission.
+  - Adds nil‑safety checks in `popLocal`, `steal`, `Submit`, and `reserveBatch`.  
+    ([4f5477e](https://github.com/qecko-labs/Quench/commit/4f5477e), [0b571a6](https://github.com/qecko-labs/Quench/commit/0b571a6))
+
+- **`internal/drivers/lfqueue/queue.go`** – replaced `chan` with lock‑free MPSC queue for the task pipeline.  
+  ([a125354](https://github.com/qecko-labs/Quench/commit/a125354))
+
+- **`internal/drivers/scheduler/scheduler.go`** – integrated the new `fo` pool and spinlock:
+  - Replaced `sync.Mutex` with `sync.SpinLock` for `pendingMu` and `errMu`.
+  - Replaced raw `go` routines with `fo.Task` submissions.
+  - Added `exec` pool field.  
+    ([132469f](https://github.com/qecko-labs/Quench/commit/132469f))
+
+- **`internal/linker/flat.go`** – added `splice` syscall support for fast file copying with fallback to `copyFileHotRW`.  
+  ([3d24b03](https://github.com/qecko-labs/Quench/commit/3d24b03))
+
+- **`internal/linker/parallel.go`** – switched to `fo.NewPool` and `SubmitBatch` for parallel linking tasks; error handling now uses `atomic.Value` for first error.  
+  ([7e7ffb4](https://github.com/qecko-labs/Quench/commit/7e7ffb4))
+
+- **`internal/linker/symbols.go`** – replaced channel‑based result collection with `chan.MPSC` and `fo.Pool` for symbol parsing.  
+  ([1f33dec](https://github.com/qecko-labs/Quench/commit/1f33dec))
+
+- **`internal/builder/builder.go`** – replaced manual goroutine creation with `fo.SubmitBatch` for parallel object compilation.  
+  ([3e933f8](https://github.com/qecko-labs/Quench/commit/3e933f8))
+
+- **`internal/builder/cache.go`** – replaced channel‑based async cache writes with `fo.Pool` submission.  
+  ([5c6bdc2](https://github.com/qecko-labs/Quench/commit/5c6bdc2))
+
+- **`internal/builder/action_cache.go`** – replaced `sync.RWMutex` with `sync.SpinLock` for L1/L2 cache metadata.  
+  ([efa2182](https://github.com/qecko-labs/Quench/commit/efa2182))
+
+- **`internal/audit/audit.go`** – migrated from `workerpool` to `fo.Pool` and `unsafe.Pointer` task slots; all scan routines now use the new pool.  
+  ([5b8abc0](https://github.com/qecko-labs/Quench/commit/5b8abc0))
+
+- **`.gitignore`** – added `fo.test` and `linker.test` to exclude test binaries.  
+  ([85be3b8](https://github.com/qecko-labs/Quench/commit/85be3b8))
+
+### Removed
+
+- **`internal/drivers/workerpool/`** – removed entire package in favor of the new `fo`‑based concurrency model.  
+  ([636f093](https://github.com/qecko-labs/Quench/commit/636f093), [5b14bf3](https://github.com/qecko-labs/Quench/commit/5b14bf3), [ef1c442](https://github.com/qecko-labs/Quench/commit/ef1c442))
+
+### Fixed
+
+- **`fo` pool panics** – fixed nil pointer dereferences in `popLocal()`, `steal()`, `Submit()`, and `reserveBatch()`.  
+  ([0b571a6](https://github.com/qecko-labs/Quench/commit/0b571a6))
+- **`chan.MPSC` nil checks** – added guards in `Dequeue()` to prevent segmentation faults.  
+  ([1884b5b](https://github.com/qecko-labs/Quench/commit/1884b5b))
+- **`fo.publicQ` initialization** – ensured the public queue is always created and checked before use in `steal()`.  
+  ([30a5548](https://github.com/qecko-labs/Quench/commit/30a5548))
+
+### Performance
+
+- `fo.Submit` benchmark now passes with **0 allocs/op**.  
+  ([d7a4098](https://github.com/qecko-labs/Quench/commit/d7a4098))
+- `BenchmarkCopyFileHot` remains **0 allocs/op**.  
+  ([3d24b03](https://github.com/qecko-labs/Quench/commit/3d24b03))
+- Scheduler benchmarks show **0 allocs/op**.  
+  ([132469f](https://github.com/qecko-labs/Quench/commit/132469f))
+
+# RELEASED 6.0.0 Quench
 
 ## 2026-07-24
 
@@ -720,4 +807,28 @@ bd9124a fix(assembler): add symbol value overflow checks for ELF32
 33dc87b fix(assembler): handle write error in stderr output
 b1b481c fix(cli): handle write error in flag usage function
 d05bbb0 (origin/main, origin/HEAD) fix(buildcmd): got rid of that duplicate output on screen after the biuld
+c073fc7 feat(chan): add MPSC queue for multi-producer single-consumer
+f6286ee feat(chan): add SPSC queue for single-producer single-consumer
+d690bc6 feat(sync): add spinlock implementation
+43c2258 feat(sync): add sync.Once with spinlock
+70e2cc3 feat(thread): add thread pool with work-stealing
+e8c291c test(thread): add tests for thread pool
+d7a4098 test(fo): add benchmarks for fo pool
+636f093 refactor(workerpool): remove pool.go (replaced by fo)
+5b14bf3 refactor(workerpool): remove pool_test.go
+ef1c442 refactor(workerpool): remove task.go
+4f5477e perf(fo): optimize with sync.Pool and work-stealing
+a125354 perf(lfqueue): use unsafe.Pointer for lock-free queue
+132469f perf(scheduler): integrate fo pool and spinlock
+5b8abc0 perf(audit): migrate to fo pool with unsafe.Pointer task slots
+efa2182 perf(builder): replace RWMutex with spinlock in action_cache
+3e933f8 perf(builder): use fo.SubmitBatch for parallel builds
+5c6bdc2 perf(builder): replace channel with fo pool in cache
+3d24b03 perf(linker): add splice and fallback for file copy
+7e7ffb4 perf(linker): use fo pool for parallel linking
+1f33dec perf(linker): use MPSC queue and fo pool for symbol parsing
+85be3b8 chore: ignore fo.test and linker.test binaries
+1884b5b fix(chan): add nil checks in MPSC.Dequeue
+30a5548 fix(fo): add publicQ nil check in steal() and ensure init
+0b571a6 fix(fo): add nil checks in popLocal, steal, Submit and reserveBatch
 ```
