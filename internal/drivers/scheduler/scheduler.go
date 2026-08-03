@@ -22,6 +22,11 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"unsafe"
+
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/fo"
+	syncx "github.com/forgezero-cli/ForgeZero/internal/drivers/sync"
 )
 
 var (
@@ -42,12 +47,13 @@ type Scheduler struct {
 	workers     []*priorityQueues
 	nextSubmit  atomic.Uint64
 	pending     atomic.Int64
-	pendingMu   sync.Mutex
+	pendingMu   syncx.SpinLock
 	pendingCond *sync.Cond
 	running     atomic.Bool
-	errMu       sync.Mutex
+	errMu       syncx.SpinLock
 	errs        []error
 	ctxHolder   runContextHolder
+	exec        *fo.Pool
 }
 
 func NewScheduler(workerPoolSize int, queueSize int) *Scheduler {
@@ -71,8 +77,15 @@ func NewScheduler(workerPoolSize int, queueSize int) *Scheduler {
 	for i := 0; i < workerPoolSize; i++ {
 		s.workers[i] = newPriorityQueues(queueSize)
 	}
+	s.exec = fo.NewPool(workerPoolSize)
 	for i := 0; i < workerPoolSize; i++ {
-		go s.workerLoop(i)
+		idx := i
+		j := idx
+		ft := fo.Task{Fn: func(arg unsafe.Pointer) error {
+			s.workerLoop(j)
+			return nil
+		}, Arg: nil}
+		s.exec.Submit(ft)
 	}
 	return s
 }
