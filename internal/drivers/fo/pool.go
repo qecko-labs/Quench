@@ -19,9 +19,13 @@ package fo
 
 import (
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
+
+	ch "github.com/forgezero-cli/ForgeZero/internal/drivers/chan"
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/thread"
 )
 
 type Task struct {
@@ -38,7 +42,7 @@ func (t Task) Run() error {
 
 type ringSlot struct {
 	sequence uint64
-	task     Task
+	task     *Task
 }
 
 type ringBuffer struct {
@@ -62,9 +66,16 @@ type Pool struct {
 	next    uint64
 	stop    uint32
 	live    uint64
+	tp      *thread.Pool
+	publicQ *ch.MPSC
 }
 
 var globalPool atomic.Pointer[Pool]
+var taskPool sync.Pool
+
+func init() {
+	taskPool.New = func() any { return &Task{} }
+}
 
 func NewPool(size int) *Pool {
 	if size <= 0 {
@@ -79,10 +90,13 @@ func NewPool(size int) *Pool {
 		workers[i] = &worker{queue: ringBuffer{cap: cap, mask: cap - 1, slots: make([]ringSlot, cap)}, id: i}
 	}
 	p := &Pool{workers: workers}
+	p.tp = thread.NewPool(size)
+	p.publicQ = ch.NewMPSC(1 << 12)
 	for i := range workers {
 		workers[i].owner = p
 		atomic.AddUint64(&p.live, 1)
-		go p.worker(i)
+		idx := i
+		p.tp.Submit(func() { p.worker(idx) })
 	}
 	return p
 }
@@ -104,33 +118,90 @@ func (p *Pool) Submit(task Task) bool {
 		return false
 	}
 	w := p.queueForSubmit()
-	if w == nil {
-		return false
+	if w != nil {
+		spin := 0
+		for {
+			tail := atomic.LoadUint64(&w.queue.tail)
+			head := atomic.LoadUint64(&w.queue.head)
+			if tail-head < w.queue.cap {
+				if atomic.CompareAndSwapUint64(&w.queue.tail, tail, tail+1) {
+					idx := int(tail & w.queue.mask)
+					slot := &w.queue.slots[idx]
+					tp := taskPool.Get().(*Task)
+					*tp = task
+					slot.task = tp
+					atomic.StoreUint64(&slot.sequence, tail+1)
+					return true
+				}
+			}
+			spin++
+			if spin < 8 {
+				runtime.Gosched()
+				continue
+			}
+			break
+		}
 	}
-	for {
+	if p.publicQ != nil {
+		return p.publicQ.Enqueue(task)
+	}
+	return false
+}
+
+func (p *Pool) reserveBatch(w *worker, tasks []Task) int {
+	for spin := 0; ; spin++ {
 		tail := atomic.LoadUint64(&w.queue.tail)
-		if tail-atomic.LoadUint64(&w.queue.head) >= w.queue.cap {
+		head := atomic.LoadUint64(&w.queue.head)
+		used := tail - head
+		if used >= w.queue.cap {
+			if spin < 8 {
+				runtime.Gosched()
+				continue
+			}
+			return 0
+		}
+		available := int(w.queue.cap - used)
+		count := len(tasks)
+		if count > available {
+			count = available
+		}
+		if count == 0 {
+			return 0
+		}
+		if atomic.CompareAndSwapUint64(&w.queue.tail, tail, tail+uint64(count)) {
+			for i := 0; i < count; i++ {
+				idx := int((tail + uint64(i)) & w.queue.mask)
+				slot := &w.queue.slots[idx]
+				tp := taskPool.Get().(*Task)
+				*tp = tasks[i]
+				slot.task = tp
+				atomic.StoreUint64(&slot.sequence, tail+uint64(i)+1)
+			}
+			return count
+		}
+		if spin < 8 {
 			runtime.Gosched()
 			continue
 		}
-		if atomic.CompareAndSwapUint64(&w.queue.tail, tail, tail+1) {
-			idx := int(tail & w.queue.mask)
-			slot := &w.queue.slots[idx]
-			slot.task = task
-			atomic.StoreUint64(&slot.sequence, tail+1)
-			return true
-		}
+		time.Sleep(time.Microsecond)
 	}
 }
 
 func (p *Pool) SubmitBatch(tasks []Task) bool {
-	if p == nil {
+	if p == nil || len(tasks) == 0 || atomic.LoadUint32(&p.stop) != 0 {
 		return false
 	}
-	for i := range tasks {
-		if !p.Submit(tasks[i]) {
+	start := 0
+	for start < len(tasks) {
+		w := p.queueForSubmit()
+		if w == nil {
 			return false
 		}
+		count := p.reserveBatch(w, tasks[start:])
+		if count == 0 {
+			continue
+		}
+		start += count
 	}
 	return true
 }
@@ -145,6 +216,9 @@ func (p *Pool) Stop() {
 	if atomic.CompareAndSwapUint32(&p.stop, 0, 1) {
 		for atomic.LoadUint64(&p.live) != 0 {
 			runtime.Gosched()
+		}
+		if p.tp != nil {
+			p.tp.Stop()
 		}
 	}
 }
@@ -167,39 +241,40 @@ func (p *Pool) worker(id int) {
 		if atomic.LoadUint32(&p.stop) != 0 && atomic.LoadUint64(&w.queue.head) >= atomic.LoadUint64(&w.queue.tail) {
 			return
 		}
-		if task, ok := w.popLocal(); ok {
-			w.idleBackoff = 0
-			_ = task.Run()
-			continue
-		}
-		if task, ok := w.steal(); ok {
-			w.idleBackoff = 0
-			_ = task.Run()
-			continue
-		}
-
-		if w.idleBackoff == 0 {
+		spun := 0
+		handled := false
+		for spun < 64 {
+			if task, ok := w.popLocal(); ok {
+				w.idleBackoff = 0
+				_ = task.Run()
+				handled = true
+				break
+			}
+			if task, ok := w.steal(); ok {
+				w.idleBackoff = 0
+				_ = task.Run()
+				handled = true
+				break
+			}
 			runtime.Gosched()
-			w.idleBackoff = 1
+			spun++
+		}
+		if handled {
 			continue
 		}
-
-		pause := time.Microsecond
-		for i := uint32(0); i < w.idleBackoff && pause < time.Millisecond; i++ {
-			pause *= 2
-		}
+		pause := time.Microsecond << (w.idleBackoff & 7)
 		if pause > time.Millisecond {
 			pause = time.Millisecond
 		}
 		time.Sleep(pause)
-		if w.idleBackoff < 8 {
+		if w.idleBackoff < 255 {
 			w.idleBackoff++
 		}
 	}
 }
 
 func (w *worker) popLocal() (Task, bool) {
-	for {
+	for spin := 0; ; spin++ {
 		head := atomic.LoadUint64(&w.queue.head)
 		tail := atomic.LoadUint64(&w.queue.tail)
 		if head >= tail {
@@ -208,13 +283,21 @@ func (w *worker) popLocal() (Task, bool) {
 		idx := int(head & w.queue.mask)
 		slot := &w.queue.slots[idx]
 		if atomic.LoadUint64(&slot.sequence) != head+1 {
-			runtime.Gosched()
+			if spin < 8 {
+				runtime.Gosched()
+			} else if spin < 16 {
+				time.Sleep(time.Microsecond)
+			} else {
+				time.Sleep(10 * time.Microsecond)
+			}
 			continue
 		}
 		if atomic.CompareAndSwapUint64(&w.queue.head, head, head+1) {
-			task := slot.task
-			slot.task = Task{}
+			tp := slot.task
+			slot.task = nil
 			atomic.StoreUint64(&slot.sequence, head+w.queue.cap)
+			task := *tp
+			taskPool.Put(tp)
 			return task, true
 		}
 	}
@@ -222,6 +305,9 @@ func (w *worker) popLocal() (Task, bool) {
 
 func (w *worker) steal() (Task, bool) {
 	if w.owner == nil || len(w.owner.workers) <= 1 {
+		return Task{}, false
+	}
+	if atomic.LoadUint64(&w.queue.tail) > atomic.LoadUint64(&w.queue.head) {
 		return Task{}, false
 	}
 	for step := 0; step < len(w.owner.workers); step++ {
@@ -232,6 +318,25 @@ func (w *worker) steal() (Task, bool) {
 		}
 		if task, ok := victim.popLocal(); ok {
 			return task, true
+		}
+	}
+	if w.owner != nil && w.owner.publicQ != nil {
+		var batch []Task
+		for i := 0; i < 64; i++ {
+			if v, ok := w.owner.publicQ.Dequeue(); ok {
+				if t, ok2 := v.(Task); ok2 {
+					batch = append(batch, t)
+					continue
+				}
+			}
+			break
+		}
+		if len(batch) > 0 {
+			if cnt := w.owner.reserveBatch(w, batch); cnt > 0 {
+				if task, ok := w.popLocal(); ok {
+					return task, true
+				}
+			}
 		}
 	}
 	return Task{}, false
