@@ -27,9 +27,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/forgezero-cli/ForgeZero/internal/config"
-	"github.com/forgezero-cli/ForgeZero/internal/drivers/workerpool"
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/fo"
 	"github.com/forgezero-cli/ForgeZero/internal/utils"
 )
 
@@ -143,6 +144,17 @@ type licenseRule struct {
 	Summary  string
 	URL      string
 }
+
+type taskSlot struct {
+	task func(ctx context.Context) error
+}
+
+var taskSlotPool = sync.Pool{
+	New: func() any { return &taskSlot{} },
+}
+
+func acquireTaskSlot() *taskSlot  { return taskSlotPool.Get().(*taskSlot) }
+func releaseTaskSlot(s *taskSlot) { s.task = nil; taskSlotPool.Put(s) }
 
 var secretRules = []secretRule{
 	{ID: "aws-secret-access-key", Pattern: regexp.MustCompile(`(?i)aws[_-]?secret[_-]?access[_-]?key\s*[:=]\s*[\"']?[A-Za-z0-9/+=]{40,}`), Summary: "Hardcoded AWS secret access key found."},
@@ -283,7 +295,7 @@ func scanVendor(ctx context.Context, root, vendorPath string, cfg *config.Config
 		return nil
 	}
 
-	pool := workerpool.NewWorkerPool(runtime.NumCPU())
+	pool := fo.NewPool(runtime.NumCPU())
 	defer pool.Stop()
 
 	var wg sync.WaitGroup
@@ -292,7 +304,8 @@ func scanVendor(ctx context.Context, root, vendorPath string, cfg *config.Config
 	for _, path := range files {
 		wg.Add(1)
 		p := path
-		pool.Submit(func(ctx context.Context) error {
+		s := acquireTaskSlot()
+		s.task = func(ctx context.Context) error {
 			defer wg.Done()
 			rel, err := filepath.Rel(root, p)
 			if err != nil {
@@ -345,7 +358,15 @@ func scanVendor(ctx context.Context, root, vendorPath string, cfg *config.Config
 				}
 			}
 			return nil
-		})
+		}
+		fn := func(arg unsafe.Pointer) error {
+			ts := (*taskSlot)(arg)
+			defer releaseTaskSlot(ts)
+			ctx := context.Background()
+			return ts.task(ctx)
+		}
+		ft := fo.Task{Fn: fn, Arg: unsafe.Pointer(s)}
+		pool.Submit(ft)
 	}
 
 	wg.Wait()
@@ -389,7 +410,7 @@ func scanVendorLicenses(ctx context.Context, vendorPath string, cfg *config.Conf
 		return nil
 	}
 
-	pool := workerpool.NewWorkerPool(runtime.NumCPU())
+	pool := fo.NewPool(runtime.NumCPU())
 	defer pool.Stop()
 
 	var wg sync.WaitGroup
@@ -398,7 +419,8 @@ func scanVendorLicenses(ctx context.Context, vendorPath string, cfg *config.Conf
 	for _, path := range files {
 		wg.Add(1)
 		p := path
-		pool.Submit(func(ctx context.Context) error {
+		s := acquireTaskSlot()
+		s.task = func(ctx context.Context) error {
 			defer wg.Done()
 			rel, err := filepath.Rel(vendorPath, p)
 			if err != nil {
@@ -428,7 +450,15 @@ func scanVendorLicenses(ctx context.Context, vendorPath string, cfg *config.Conf
 				}
 			}
 			return nil
-		})
+		}
+		fn := func(arg unsafe.Pointer) error {
+			ts := (*taskSlot)(arg)
+			defer releaseTaskSlot(ts)
+			ctx := context.Background()
+			return ts.task(ctx)
+		}
+		ft := fo.Task{Fn: fn, Arg: unsafe.Pointer(s)}
+		pool.Submit(ft)
 	}
 
 	wg.Wait()
@@ -480,7 +510,7 @@ func scanSecrets(ctx context.Context, root string, cfg *config.Config, findings 
 		return nil
 	}
 
-	pool := workerpool.NewWorkerPool(runtime.NumCPU())
+	pool := fo.NewPool(runtime.NumCPU())
 	defer pool.Stop()
 
 	var wg sync.WaitGroup
@@ -489,7 +519,8 @@ func scanSecrets(ctx context.Context, root string, cfg *config.Config, findings 
 	for _, path := range files {
 		wg.Add(1)
 		p := path
-		pool.Submit(func(ctx context.Context) error {
+		s := acquireTaskSlot()
+		s.task = func(ctx context.Context) error {
 			defer wg.Done()
 			data, err := os.ReadFile(p)
 			if err != nil {
@@ -514,7 +545,15 @@ func scanSecrets(ctx context.Context, root string, cfg *config.Config, findings 
 				}
 			}
 			return nil
-		})
+		}
+		fn := func(arg unsafe.Pointer) error {
+			ts := (*taskSlot)(arg)
+			defer releaseTaskSlot(ts)
+			ctx := context.Background()
+			return ts.task(ctx)
+		}
+		ft := fo.Task{Fn: fn, Arg: unsafe.Pointer(s)}
+		pool.Submit(ft)
 	}
 
 	wg.Wait()
