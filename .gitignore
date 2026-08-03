@@ -3,8 +3,10 @@
 .qh_objs/
 redis-server
 release-note.md
+fo.test
 # Just testing new idea
 ins
+linker.test
 
 *.prof
 # After delete
