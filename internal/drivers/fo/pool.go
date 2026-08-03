@@ -114,7 +114,7 @@ func InitGlobalPool(size int) *Pool {
 }
 
 func (p *Pool) Submit(task Task) bool {
-	if p == nil || task.Fn == nil || atomic.LoadUint32(&p.stop) != 0 {
+	if p == nil || atomic.LoadUint32(&p.stop) != 0 || task.Fn == nil {
 		return false
 	}
 	w := p.queueForSubmit()
@@ -149,6 +149,9 @@ func (p *Pool) Submit(task Task) bool {
 }
 
 func (p *Pool) reserveBatch(w *worker, tasks []Task) int {
+	if w == nil || len(tasks) == 0 {
+		return 0
+	}
 	for spin := 0; ; spin++ {
 		tail := atomic.LoadUint64(&w.queue.tail)
 		head := atomic.LoadUint64(&w.queue.head)
@@ -296,6 +299,9 @@ func (w *worker) popLocal() (Task, bool) {
 			tp := slot.task
 			slot.task = nil
 			atomic.StoreUint64(&slot.sequence, head+w.queue.cap)
+			if tp == nil {
+				return Task{}, false
+			}
 			task := *tp
 			taskPool.Put(tp)
 			return task, true
@@ -317,6 +323,9 @@ func (w *worker) steal() (Task, bool) {
 			continue
 		}
 		if task, ok := victim.popLocal(); ok {
+			if task.Fn == nil {
+				continue
+			}
 			return task, true
 		}
 	}
