@@ -30,6 +30,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	spin "github.com/forgezero-cli/ForgeZero/internal/drivers/sync"
 	"github.com/forgezero-cli/ForgeZero/internal/hashpool"
 	"github.com/forgezero-cli/ForgeZero/internal/io_uring"
 	"github.com/forgezero-cli/ForgeZero/internal/logger"
@@ -78,12 +79,12 @@ type actionCacheJob struct {
 var (
 	l2Data       []byte
 	l2File       *os.File
-	l2Mutex      sync.RWMutex
+	l2Mutex      spin.SpinLock
 	jobQueue     chan actionCacheJob
 	initOnce     sync.Once
 	preloadStart sync.Map
 	preloadWait  sync.WaitGroup
-	l1Mu         sync.RWMutex
+	l1Mu         spin.SpinLock
 )
 
 func actionCacheInit() {
@@ -166,8 +167,8 @@ func l1Key(digest [32]byte) uint64 {
 }
 
 func l1Load(key uint64) (*l1Entry, bool) {
-	l1Mu.RLock()
-	defer l1Mu.RUnlock()
+	l1Mu.Lock()
+	defer l1Mu.Unlock()
 	expected := key
 	for probe := 0; probe < 16; probe++ {
 		idx := l1Index(key, probe)
@@ -320,9 +321,9 @@ func restoreFromL2(cacheDir string, offset uint64) error {
 	if err := mapL2Data(cacheDir); err != nil {
 		return err
 	}
-	l2Mutex.RLock()
+	l2Mutex.Lock()
 	data := l2Data
-	l2Mutex.RUnlock()
+	l2Mutex.Unlock()
 	if len(data) < int(offset)+l2HeaderSize {
 		return os.ErrNotExist
 	}
@@ -497,12 +498,12 @@ func appendL2FromArchive(data []byte, cacheDir string) (uint64, error) {
 }
 
 func mapL2Data(cacheDir string) error {
-	l2Mutex.RLock()
+	l2Mutex.Lock()
 	if l2Data != nil {
-		l2Mutex.RUnlock()
+		l2Mutex.Unlock()
 		return nil
 	}
-	l2Mutex.RUnlock()
+	l2Mutex.Unlock()
 	l2Mutex.Lock()
 	defer l2Mutex.Unlock()
 	if l2Data != nil {
