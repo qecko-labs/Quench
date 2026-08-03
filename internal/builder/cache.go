@@ -24,6 +24,9 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"unsafe"
+
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/fo"
 
 	"github.com/forgezero-cli/ForgeZero/internal/config"
 	fzerr "github.com/forgezero-cli/ForgeZero/internal/errors"
@@ -105,37 +108,36 @@ type cacheTask struct {
 	mode     string
 }
 
-var cacheWriteCh chan cacheTask
+var cachePool *fo.Pool
 
 func init() {
-	cacheWriteCh = make(chan cacheTask, 1024)
 	workers := runtime.GOMAXPROCS(0)
 	if workers <= 0 {
 		workers = 1
 	}
-	for i := 0; i < workers; i++ {
-		go func() {
-			for t := range cacheWriteCh {
-				if err := storeCache(t.src, t.obj, t.cacheDir, t.debug, t.verbose, t.mode); err != nil {
-					_, _ = os.Stderr.WriteString("storeCache failed: ")
-					_, _ = os.Stderr.WriteString(err.Error())
-					_, _ = os.Stderr.WriteString("\n")
-				}
-			}
-		}()
-	}
+	cachePool = fo.NewPool(workers)
 	ramCacheHits = utils.NewNumaCounters()
 	ramCacheMisses = utils.NewNumaCounters()
 }
 
 func AsyncStoreCache(src, obj, cacheDir string, debug, verbose bool, mode string) error {
-	t := cacheTask{src: src, obj: obj, cacheDir: cacheDir, debug: debug, verbose: verbose, mode: mode}
-	select {
-	case cacheWriteCh <- t:
-		return nil
-	default:
-		return fzerr.NewMsg(fzerr.CodeSchedulerFull, "cache write channel full")
+	t := &cacheTask{src: src, obj: obj, cacheDir: cacheDir, debug: debug, verbose: verbose, mode: mode}
+	if cachePool == nil {
+		return fzerr.NewMsg(fzerr.CodeSchedulerFull, "cache pool not initialized")
 	}
+	ft := fo.Task{Fn: func(arg unsafe.Pointer) error {
+		jt := (*cacheTask)(arg)
+		if err := storeCache(jt.src, jt.obj, jt.cacheDir, jt.debug, jt.verbose, jt.mode); err != nil {
+			_, _ = os.Stderr.WriteString("storeCache failed: ")
+			_, _ = os.Stderr.WriteString(err.Error())
+			_, _ = os.Stderr.WriteString("\n")
+		}
+		return nil
+	}, Arg: unsafe.Pointer(t)}
+	if cachePool.Submit(ft) {
+		return nil
+	}
+	return fzerr.NewMsg(fzerr.CodeSchedulerFull, "cache pool full")
 }
 
 type shadowTask struct {
@@ -145,28 +147,32 @@ type shadowTask struct {
 	mode  string
 }
 
-var shadowWriteCh = make(chan shadowTask, 256)
+var shadowPool *fo.Pool
 
 func init() {
-	go func() {
-		for t := range shadowWriteCh {
-			if err := storeShadowCache(t.src, t.obj, t.debug, t.mode); err != nil {
-				_, _ = os.Stderr.WriteString("storeShadowCache failed: ")
-				_, _ = os.Stderr.WriteString(err.Error())
-				_, _ = os.Stderr.WriteString("\n")
-			}
-		}
-	}()
+	if cachePool != nil {
+		shadowPool = cachePool
+	}
 }
 
 func AsyncStoreShadowCache(src, obj string, debug bool, mode string) error {
-	t := shadowTask{src: src, obj: obj, debug: debug, mode: mode}
-	select {
-	case shadowWriteCh <- t:
-		return nil
-	default:
-		return fzerr.NewMsg(fzerr.CodeSchedulerFull, "shadow cache write channel full")
+	t := &shadowTask{src: src, obj: obj, debug: debug, mode: mode}
+	if shadowPool == nil {
+		return fzerr.NewMsg(fzerr.CodeSchedulerFull, "shadow pool not initialized")
 	}
+	ft := fo.Task{Fn: func(arg unsafe.Pointer) error {
+		jt := (*shadowTask)(arg)
+		if err := storeShadowCache(jt.src, jt.obj, jt.debug, jt.mode); err != nil {
+			_, _ = os.Stderr.WriteString("storeShadowCache failed: ")
+			_, _ = os.Stderr.WriteString(err.Error())
+			_, _ = os.Stderr.WriteString("\n")
+		}
+		return nil
+	}, Arg: unsafe.Pointer(t)}
+	if shadowPool.Submit(ft) {
+		return nil
+	}
+	return fzerr.NewMsg(fzerr.CodeSchedulerFull, "shadow pool full")
 }
 
 type pathBuffer struct {
