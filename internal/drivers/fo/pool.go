@@ -304,7 +304,7 @@ func (w *worker) popLocal() (Task, bool) {
 }
 
 func (w *worker) steal() (Task, bool) {
-	if w.owner == nil || len(w.owner.workers) <= 1 {
+	if w.owner == nil || w.owner.publicQ == nil || len(w.owner.workers) <= 1 {
 		return Task{}, false
 	}
 	if atomic.LoadUint64(&w.queue.tail) > atomic.LoadUint64(&w.queue.head) {
