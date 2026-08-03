@@ -41,7 +41,9 @@ func New() *Queue {
 }
 
 func (q *Queue) Enqueue(v any) {
-	n := &node{val: unsafe.Pointer(&v)}
+	valCopy := new(any)
+	*valCopy = v
+	n := &node{val: unsafe.Pointer(valCopy)}
 	for {
 		t := q.tail.Load()
 		next := t.next.Load()
