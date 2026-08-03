@@ -1151,9 +1151,13 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 
 	errCh := make(chan error, len(pairs))
 	var wg sync.WaitGroup
+	tasks := make([]fo.Task, 0, len(pairs))
 	for i := range pairs {
-		p := pairs[i]
-		task := fo.Task{Fn: func(arg unsafe.Pointer) error {
+		pairItem := pairs[i]
+		pairCopy := pairItem
+		pairPtr := new(pair)
+		*pairPtr = pairCopy
+		tasks = append(tasks, fo.Task{Fn: func(arg unsafe.Pointer) error {
 			defer wg.Done()
 			pairArg := (*pair)(arg)
 			if err := buildOne(*pairArg); err != nil {
@@ -1161,9 +1165,11 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 				return err
 			}
 			return nil
-		}, Arg: unsafe.Pointer(&p)}
-		wg.Add(1)
-		pool.Submit(task)
+		}, Arg: unsafe.Pointer(pairPtr)})
+	}
+	wg.Add(len(tasks))
+	if !pool.SubmitBatch(tasks) {
+		return nil, errors.New("failed to submit build tasks")
 	}
 	wg.Wait()
 	close(errCh)
