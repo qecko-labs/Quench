@@ -25,9 +25,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"unsafe"
+
+	ch "github.com/forgezero-cli/ForgeZero/internal/drivers/chan"
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/fo"
 
 	"github.com/forgezero-cli/ForgeZero/internal/drivers/concurrency"
 	"github.com/forgezero-cli/ForgeZero/internal/utils"
@@ -74,50 +79,60 @@ func CheckDuplicateSymbols(ctx context.Context, objFiles []string, verbose bool)
 	}
 
 	sem := concurrency.NewSemaphore(16)
-	resultsChan := make(chan result, len(objFiles))
+	resultsQ := ch.NewMPSC(len(objFiles))
 	var wg concurrency.WaitGroup
+	pool := fo.NewPool(runtime.NumCPU())
 
 	for _, obj := range objFiles {
 		wg.Add(1)
-		go func(objFile string) {
+		objFile := obj
+		task := &result{}
+		_ = task
+		ft := fo.Task{Fn: func(arg unsafe.Pointer) error {
 			defer wg.Done()
 			if err := sem.AcquireContext(ctx, 1); err != nil {
-				resultsChan <- result{obj: objFile, err: err}
-				return
+				rr := &result{obj: objFile, err: err}
+				resultsQ.Enqueue(rr)
+				return nil
 			}
 			defer sem.Release(1)
-
 			if err := utils.CheckFileExists(objFile); err != nil {
-				resultsChan <- result{obj: objFile, err: err}
-				return
+				rr := &result{obj: objFile, err: err}
+				resultsQ.Enqueue(rr)
+				return nil
 			}
-
 			syms, err := readSymbols(ctx, objFile, verbose)
-			resultsChan <- result{obj: objFile, syms: syms, err: err}
-		}(obj)
+			rr := &result{obj: objFile, syms: syms, err: err}
+			resultsQ.Enqueue(rr)
+			return nil
+		}, Arg: nil}
+		pool.Submit(ft)
 	}
-
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
-
+	wg.Wait()
 	symbolMap := make(map[string][]SymbolInfo)
-	for res := range resultsChan {
-		if res.err != nil {
-			if verbose {
-				var b strings.Builder
-				b.WriteString("Warning: cannot read symbols from ")
-				b.WriteString(res.obj)
-				b.WriteString(": ")
-				b.WriteString(res.err.Error())
-				b.WriteByte('\n')
-				_, _ = os.Stderr.WriteString(b.String())
+	for i := 0; i < len(objFiles); i++ {
+		for {
+			if v, ok := resultsQ.Dequeue(); ok {
+				if res, ok2 := v.(*result); ok2 {
+					if res.err != nil {
+						if verbose {
+							var b strings.Builder
+							b.WriteString("Warning: cannot read symbols from ")
+							b.WriteString(res.obj)
+							b.WriteString(": ")
+							b.WriteString(res.err.Error())
+							b.WriteByte('\n')
+							_, _ = os.Stderr.WriteString(b.String())
+						}
+						break
+					}
+					for _, sym := range res.syms {
+						symbolMap[sym.Name] = append(symbolMap[sym.Name], sym)
+					}
+				}
+				break
 			}
-			continue
-		}
-		for _, sym := range res.syms {
-			symbolMap[sym.Name] = append(symbolMap[sym.Name], sym)
+			runtime.Gosched()
 		}
 	}
 
