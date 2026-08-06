@@ -76,11 +76,20 @@ func LinkMultipleParallel(ctx context.Context, objFiles []string, bin string, ve
 		}
 	}
 	if jobs <= 0 {
+		jobs = runtime.GOMAXPROCS(0)
+	}
+	if jobs < 1 {
 		jobs = 1
 	}
 	if len(objFiles) < minParallelLinkObjects || jobs < 2 {
 		return linkMultipleSingle(ctx, objFiles, bin, verbose, mode, sanitize, strict, libs)
 	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	tmpDir, err := os.MkdirTemp(filepath.Dir(bin), ".fz_link_*")
 	if err != nil {
@@ -116,6 +125,16 @@ func LinkMultipleParallel(ctx context.Context, objFiles []string, bin string, ve
 
 	var wg sync.WaitGroup
 	var firstErr atomic.Value
+	var cancelOnce sync.Once
+	recordError := func(err error) {
+		if err == nil {
+			return
+		}
+		firstErr.Store(err)
+		cancelOnce.Do(func() {
+			cancel()
+		})
+	}
 	for i := 0; i < len(targets)-1; i++ {
 		target := targets[i]
 		targetCopy := target
@@ -125,7 +144,7 @@ func LinkMultipleParallel(ctx context.Context, objFiles []string, bin string, ve
 			defer wg.Done()
 			linkTarget := (*LinkTarget)(arg)
 			if err := linkPartition(ctx, linkTarget, mode, verbose); err != nil {
-				firstErr.Store(err)
+				recordError(err)
 				return err
 			}
 			return nil
@@ -133,7 +152,7 @@ func LinkMultipleParallel(ctx context.Context, objFiles []string, bin string, ve
 		wg.Add(1)
 		if !pool.Submit(task) {
 			if err := task.Run(); err != nil {
-				firstErr.Store(err)
+				recordError(err)
 			}
 		}
 	}
