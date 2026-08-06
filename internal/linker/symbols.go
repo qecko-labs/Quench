@@ -82,13 +82,12 @@ func CheckDuplicateSymbols(ctx context.Context, objFiles []string, verbose bool)
 	resultsQ := ch.NewMPSC(len(objFiles))
 	var wg concurrency.WaitGroup
 	pool := fo.NewPool(runtime.NumCPU())
+	defer pool.Stop()
 
 	for _, obj := range objFiles {
 		wg.Add(1)
 		objFile := obj
-		task := &result{}
-		_ = task
-		ft := fo.Task{Fn: func(arg unsafe.Pointer) error {
+		task := fo.Task{Fn: func(arg unsafe.Pointer) error {
 			defer wg.Done()
 			if err := sem.AcquireContext(ctx, 1); err != nil {
 				rr := &result{obj: objFile, err: err}
@@ -106,7 +105,11 @@ func CheckDuplicateSymbols(ctx context.Context, objFiles []string, verbose bool)
 			resultsQ.Enqueue(rr)
 			return nil
 		}, Arg: nil}
-		pool.Submit(ft)
+		if !pool.Submit(task) {
+			if err := task.Run(); err != nil {
+				//
+			}
+		}
 	}
 	wg.Wait()
 	symbolMap := make(map[string][]SymbolInfo)
