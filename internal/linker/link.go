@@ -112,6 +112,16 @@ func cachedLookPath(name string) (string, error) {
 
 func detectLinker() {
 	linkerOnce.Do(func() {
+		if p := strings.TrimSpace(strings.ToLower(PreferredLinker)); p != "" {
+			preferredLinker = p
+			switch p {
+			case "lld":
+				hasLld = true
+			case "mold":
+				hasMold = true
+			}
+			return
+		}
 		if _, err := cachedLookPath("ld.lld"); err == nil {
 			hasLld = true
 			preferredLinker = "lld"
@@ -476,6 +486,8 @@ func runBuild(ctx context.Context, files []string, backend string) error {
 		args = append([]string{"fasm"}, files...)
 	case "gas":
 		args = append([]string{"gcc", "-c"}, files...)
+	default:
+		return errors.New("unsupported build backend: " + backend)
 	}
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
