@@ -116,7 +116,15 @@ func assembleGoAsm(ctx context.Context, src, obj string, verbose bool) error {
 	includeDir := filepath.Join(goroot, "src", "runtime")
 
 	if verbose {
-		writeStderr("Running: go tool asm -I " + includeDir + src + "-o " + obj + "\n")
+		var b strings.Builder
+		b.WriteString("Running: go tool asm -I ")
+		b.WriteString(includeDir)
+		b.WriteString(" ")
+		b.WriteString(src)
+		b.WriteString(" -o ")
+		b.WriteString(obj)
+		b.WriteString("\n")
+		writeStderr(b.String())
 	}
 
 	cmd := exec.CommandContext(ctx, "go", "tool", "asm", "-I", includeDir, src, "-o", obj)
