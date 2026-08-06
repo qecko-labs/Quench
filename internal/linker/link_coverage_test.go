@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/forgezero-cli/ForgeZero/internal/utils"
@@ -148,6 +149,44 @@ func TestLinkWithZigUnavailable(t *testing.T) {
 	}
 }
 
+func TestLinkWithGccFallbackDetachedNoPie(t *testing.T) {
+	oldRunner := runner
+	defer func() { runner = oldRunner }()
+	callCount := 0
+	runner = &MockRunner{RunFunc: func(ctx context.Context, verbose bool, name string, args ...string) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "fail", errors.New("fail")
+		}
+		return "ok", nil
+	}}
+	if err := linkWithGcc(context.Background(), []string{"a.o"}, "out", false, true, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected fallback attempt, got %d", callCount)
+	}
+}
+
+func TestLinkWithGccFallbackNoPieVerboseReporting(t *testing.T) {
+	oldRunner := runner
+	defer func() { runner = oldRunner }()
+	callCount := 0
+	runner = &MockRunner{RunFunc: func(ctx context.Context, verbose bool, name string, args ...string) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "first fail", errors.New("fail")
+		}
+		return "ok", nil
+	}}
+	if err := linkWithGcc(context.Background(), []string{"a.o"}, "out", true, true, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected fallback attempt, got %d", callCount)
+	}
+}
+
 func TestLinkWithLdMockCoverage(t *testing.T) {
 	oldRunner := runner
 	defer func() { runner = oldRunner }()
@@ -181,6 +220,38 @@ func TestRunLinkerCommandResponseFile(t *testing.T) {
 	}
 }
 
+func TestSplitObjectsPartitioning(t *testing.T) {
+	parts := splitObjects([]string{"a.o", "b.o", "c.o", "d.o", "e.o"}, 3)
+	if len(parts) != 3 {
+		t.Fatalf("expected 3 partitions, got %d", len(parts))
+	}
+	if len(parts[0]) != 2 || len(parts[1]) != 2 || len(parts[2]) != 1 {
+		t.Fatalf("unexpected partition sizes %v", []int{len(parts[0]), len(parts[1]), len(parts[2])})
+	}
+}
+
+func TestLinkPartitionAndFinalGetErrors(t *testing.T) {
+	oldRunner := runner
+	defer func() { runner = oldRunner }()
+	runner = &MockRunner{RunFunc: func(ctx context.Context, verbose bool, name string, args ...string) (string, error) {
+		return "partial fail", errors.New("fail")
+	}}
+	if err := linkPartition(context.Background(), &LinkTarget{Name: "tmp.o", Objs: []string{"a.o"}}, "raw", false); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestLinkFinalReturnsVerboseError(t *testing.T) {
+	oldRunner := runner
+	defer func() { runner = oldRunner }()
+	runner = &MockRunner{RunFunc: func(ctx context.Context, verbose bool, name string, args ...string) (string, error) {
+		return "final fail", errors.New("fail")
+	}}
+	if err := linkFinal(context.Background(), &LinkTarget{Name: "out", Objs: []string{"a.o"}}, "raw", true, false, false, nil); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestUseZigFlags(t *testing.T) {
 	old := ZigEnabled
 	ZigEnabled = true
@@ -192,6 +263,36 @@ func TestUseZigFlags(t *testing.T) {
 	defer func() { ZigRequested = false }()
 	if !useZig() {
 		t.Fatal()
+	}
+}
+
+func TestDetectLinkerRespectsPreferredLinker(t *testing.T) {
+	old := PreferredLinker
+	oldOnce := linkerOnce
+	oldPreferred := preferredLinker
+	oldHasLld := hasLld
+	oldHasMold := hasMold
+	oldCache := toolPathCache
+	PreferredLinker = "mold"
+	linkerOnce = sync.Once{}
+	preferredLinker = ""
+	hasLld = false
+	hasMold = false
+	toolPathCache = sync.Map{}
+	defer func() {
+		PreferredLinker = old
+		linkerOnce = oldOnce
+		preferredLinker = oldPreferred
+		hasLld = oldHasLld
+		hasMold = oldHasMold
+		toolPathCache = oldCache
+	}()
+	detectLinker()
+	if preferredLinker != "mold" {
+		t.Fatalf("expected preferredLinker mold, got %s", preferredLinker)
+	}
+	if !hasMold {
+		t.Fatal("expected hasMold true")
 	}
 }
 
