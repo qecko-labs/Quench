@@ -172,6 +172,9 @@ func parseBuiltinArgs(nextToken func() Token, src string) ([]string, error) {
 		if argTok.Type == RPAREN || argTok.Type == EOF {
 			break
 		}
+		if argTok.Type == COMMA {
+			continue
+		}
 		if argTok.Type != IDENT && argTok.Type != INT {
 			return nil, errors.New("expected identifier or integer inside call")
 		}
@@ -180,12 +183,109 @@ func parseBuiltinArgs(nextToken func() Token, src string) ([]string, error) {
 		if next.Type == RPAREN {
 			break
 		}
-		if next.Type == COMMA || next.Literal(src) == "," {
+		if next.Type == COMMA {
 			continue
 		}
 		return nil, errors.New("expected ',' or ')' after argument")
 	}
 	return args, nil
+}
+
+func emitLoadValue(out []byte, tok Token, reg int, state *compilerState, src string) ([]byte, error) {
+	switch tok.Type {
+	case INT:
+		v, err := strconv.ParseUint(tok.Literal(src), 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid integer literal")
+		}
+		return emitMovImm64ToReg(out, reg, v), nil
+	case IDENT:
+		if tok.Literal(src) == "peek" {
+			return nil, errors.New("peek must be handled as a builtin call")
+		}
+		offset, err := state.getStackOffset(tok.Literal(src))
+		if err != nil {
+			return nil, err
+		}
+		return emitMovStackToReg(out, reg, offset), nil
+	default:
+		return nil, errors.New("expected integer or variable")
+	}
+}
+
+func emitBinaryOp(out []byte, op TokenType, rhs Token, state *compilerState, src string) ([]byte, error) {
+	if rhs.Type == INT {
+		v, err := strconv.ParseUint(rhs.Literal(src), 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid integer literal")
+		}
+		if op == PLUS {
+			return emitAddImm64ToReg(out, 0, v), nil
+		}
+		return emitSubImm64ToReg(out, 0, v), nil
+	}
+	offset, err := state.getStackOffset(rhs.Literal(src))
+	if err != nil {
+		return nil, err
+	}
+	out = emitMovStackToReg(out, 1, offset)
+	if op == PLUS {
+		return emitAddRegToReg(out, 1, 0), nil
+	}
+	return emitSubRegToReg(out, 1, 0), nil
+}
+
+func emitPrintValue(out []byte, tok Token, state *compilerState, src string) ([]byte, error) {
+	switch tok.Type {
+	case STRING:
+		return emitBareMetalPrint(out, tok.Literal(src)), nil
+	case INT:
+		return emitNumberPrint(out, tok.Literal(src))
+	case IDENT:
+		regName := tok.Literal(src)
+		if _, ok := map[string]int{"rax": 0, "rcx": 1, "rdx": 2, "rbx": 3, "rsi": 6, "rdi": 7, "r8": 8, "r9": 9, "r10": 10, "r11": 11, "r12": 12, "r13": 13, "r14": 14, "r15": 15}[regName]; ok {
+			return emitRegisterPrint(out, regName)
+		}
+		offset, err := state.getStackOffset(regName)
+		if err != nil {
+			return nil, err
+		}
+		out = emitMovStackToReg(out, 0, offset)
+		return emitRegisterPrint(out, "rax")
+	default:
+		return nil, errors.New("print expects a string, number, or variable")
+	}
+}
+
+func emitCondition(out []byte, lhsTok, rhsTok Token, state *compilerState, src string) ([]byte, error) {
+	var err error
+	out, err = emitLoadValue(out, lhsTok, 0, state, src)
+	if err != nil {
+		return nil, err
+	}
+	out, err = emitLoadValue(out, rhsTok, 1, state, src)
+	if err != nil {
+		return nil, err
+	}
+	return emitCmpRegToReg(out, 1, 0), nil
+}
+
+func parseExpression(out []byte, firstTok Token, nextToken func() Token, peekToken func() Token, state *compilerState, src string) ([]byte, error) {
+	var err error
+	out, err = emitLoadValue(out, firstTok, 0, state, src)
+	if err != nil {
+		return nil, err
+	}
+	opTok := peekToken()
+	if opTok.Type == PLUS || opTok.Type == MINUS {
+		nextToken()
+		rhs := nextToken()
+		out, err = emitBinaryOp(out, opTok.Type, rhs, state, src)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func emitBuiltinCall(out []byte, name string, args []string, state *compilerState) ([]byte, error) {
