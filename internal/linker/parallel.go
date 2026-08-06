@@ -116,13 +116,12 @@ func LinkMultipleParallel(ctx context.Context, objFiles []string, bin string, ve
 
 	var wg sync.WaitGroup
 	var firstErr atomic.Value
-	tasks := make([]fo.Task, 0, len(targets)-1)
 	for i := 0; i < len(targets)-1; i++ {
 		target := targets[i]
 		targetCopy := target
 		targetPtr := new(LinkTarget)
 		*targetPtr = targetCopy
-		tasks = append(tasks, fo.Task{Fn: func(arg unsafe.Pointer) error {
+		task := fo.Task{Fn: func(arg unsafe.Pointer) error {
 			defer wg.Done()
 			linkTarget := (*LinkTarget)(arg)
 			if err := linkPartition(ctx, linkTarget, mode, verbose); err != nil {
@@ -130,11 +129,13 @@ func LinkMultipleParallel(ctx context.Context, objFiles []string, bin string, ve
 				return err
 			}
 			return nil
-		}, Arg: unsafe.Pointer(targetPtr)})
-	}
-	wg.Add(len(tasks))
-	if !pool.SubmitBatch(tasks) {
-		return errors.New("failed to submit linker tasks")
+		}, Arg: unsafe.Pointer(targetPtr)}
+		wg.Add(1)
+		if !pool.Submit(task) {
+			if err := task.Run(); err != nil {
+				firstErr.Store(err)
+			}
+		}
 	}
 	wg.Wait()
 	if v := firstErr.Load(); v != nil {
