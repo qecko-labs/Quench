@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/concurrency"
 	"github.com/forgezero-cli/ForgeZero/internal/utils"
 )
 
@@ -149,13 +150,20 @@ func BuildManifest(root string) ([]ManifestEntry, error) {
 	entries := make([]ManifestEntry, len(files))
 	errCh := make(chan error, len(files))
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, runtime.NumCPU())
+	sem := concurrency.NewSemaphore(runtime.NumCPU())
 	for i, rel := range files {
 		wg.Add(1)
-		sem <- struct{}{}
+		if err := sem.Acquire(1); err != nil {
+			wg.Done()
+			select {
+			case errCh <- errors.New("semaphore acquire failed"):
+			default:
+			}
+			continue
+		}
 		go func(index int, fileRel string) {
 			defer wg.Done()
-			defer func() { <-sem }()
+			defer sem.Release(1)
 			defer func() {
 				if r := recover(); r != nil {
 					select {
