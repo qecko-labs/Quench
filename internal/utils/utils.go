@@ -40,7 +40,7 @@ import (
 
 var (
 	bufferPool     = sync.Pool{New: func() any { return new(bytes.Buffer) }}
-	copyBufferPool = sync.Pool{New: func() any { b := make([]byte, 32*1024); return &b }}
+	copyBufferPool = sync.Pool{New: func() any { return new([]byte) }}
 )
 
 var (
