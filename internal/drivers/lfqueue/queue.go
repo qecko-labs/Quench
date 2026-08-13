@@ -18,22 +18,30 @@
 package lfqueue
 
 import (
+	"sync"
 	"sync/atomic"
-	"unsafe"
 )
 
 type node struct {
-	val  unsafe.Pointer
+	val  any
 	next atomic.Pointer[node]
 }
+
+var nodePool sync.Pool
 
 type Queue struct {
 	head atomic.Pointer[node]
 	tail atomic.Pointer[node]
 }
 
+func init() {
+	nodePool.New = func() any { return &node{} }
+}
+
 func New() *Queue {
-	stub := &node{}
+	stub := nodePool.Get().(*node)
+	stub.val = nil
+	stub.next.Store(nil)
 	q := &Queue{}
 	q.head.Store(stub)
 	q.tail.Store(stub)
@@ -41,9 +49,9 @@ func New() *Queue {
 }
 
 func (q *Queue) Enqueue(v any) {
-	valCopy := new(any)
-	*valCopy = v
-	n := &node{val: unsafe.Pointer(valCopy)}
+	n := nodePool.Get().(*node)
+	n.val = v
+	n.next.Store(nil)
 	for {
 		t := q.tail.Load()
 		next := t.next.Load()
@@ -72,12 +80,11 @@ func (q *Queue) Dequeue() (any, bool) {
 				}
 				q.tail.CompareAndSwap(t, next)
 			} else {
-				valPtr := next.val
 				if q.head.CompareAndSwap(h, next) {
-					if valPtr == nil {
-						return nil, false
-					}
-					v := *(*any)(valPtr)
+					v := next.val
+					h.val = nil
+					h.next.Store(nil)
+					nodePool.Put(h)
 					return v, true
 				}
 			}
