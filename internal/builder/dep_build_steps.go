@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/forgezero-cli/ForgeZero/internal/config"
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/concurrency"
 	"github.com/forgezero-cli/ForgeZero/internal/variables"
 )
 
@@ -287,7 +288,7 @@ func (db *DepBuilder) runParallelSteps(steps []config.BuildStep, envMap map[stri
 	if max <= 0 {
 		max = 1
 	}
-	sem := make(chan struct{}, max)
+	sem := concurrency.NewSemaphore(max)
 	var wg sync.WaitGroup
 	var errOnce sync.Once
 	var firstErr error
@@ -300,10 +301,14 @@ func (db *DepBuilder) runParallelSteps(steps []config.BuildStep, envMap map[stri
 			continue
 		}
 		wg.Add(1)
-		sem <- struct{}{}
+		if err := sem.Acquire(1); err != nil {
+			// Acquire should not fail under normal circumstances; treat as fatal
+			wg.Done()
+			return err
+		}
 		go func() {
 			defer wg.Done()
-			defer func() { <-sem }()
+			defer sem.Release(1)
 			if err := db.runStep(step, envMap); err != nil {
 				errOnce.Do(func() { firstErr = err })
 			}
