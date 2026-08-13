@@ -22,10 +22,7 @@ import (
 	"sync"
 )
 
-var bufPool = sync.Pool{New: func() any {
-	b := make([]byte, 0, 256)
-	return &b
-}}
+var bufPool = sync.Pool{New: func() any { return new([]byte) }}
 
 func GetBuf() []byte {
 	return (*bufPool.Get().(*[]byte))[:0]
