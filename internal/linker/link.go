@@ -53,11 +53,11 @@ var (
 var PreferredLinker string
 
 var (
-	linkerOnce      sync.Once
+	linkerOnce      = &sync.Once{}
 	preferredLinker string
 	hasLld          bool
 	hasMold         bool
-	toolPathCache   sync.Map
+	toolPathCache   = &sync.Map{}
 	bufferPool      = sync.Pool{New: func() any { return new(bytes.Buffer) }}
 	extMap          = map[string]bool{
 		".c": true, ".cpp": true, ".cc": true, ".cxx": true,
@@ -148,11 +148,11 @@ func getFuseLdFlag() string {
 }
 
 func ResetLinkerDetection() {
-	linkerOnce = sync.Once{}
+	linkerOnce = &sync.Once{}
 	preferredLinker = ""
 	hasLld = false
 	hasMold = false
-	toolPathCache = sync.Map{}
+	toolPathCache = &sync.Map{}
 }
 
 func SetRunner(r CmdRunner) {
