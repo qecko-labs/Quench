@@ -113,7 +113,9 @@ func EmitFlatBinary(layout Layout) ([]byte, error) {
 	if ordered[1].Origin < ordered[0].Origin {
 		ordered[0], ordered[1] = ordered[1], ordered[0]
 	}
-	var buffer []byte
+
+	totalSize := 0
+	regionSizes := [2]int{}
 	for i := 0; i < 2; i++ {
 		ofRegion, count := collectSectionsForRegion(ordered[i], layout.Sections)
 		if count == 0 {
@@ -123,9 +125,19 @@ func EmitFlatBinary(layout Layout) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		start := len(buffer)
-		buffer = append(buffer, make([]byte, size)...)
-		writeRegionOutput(buffer[start:], ordered[i], ofRegion, count)
+		regionSizes[i] = size
+		totalSize += size
+	}
+
+	buffer := make([]byte, totalSize)
+	offset := 0
+	for i := 0; i < 2; i++ {
+		if regionSizes[i] == 0 {
+			continue
+		}
+		ofRegion, count := collectSectionsForRegion(ordered[i], layout.Sections)
+		writeRegionOutput(buffer[offset:offset+regionSizes[i]], ordered[i], ofRegion, count)
+		offset += regionSizes[i]
 	}
 	return buffer, nil
 }
