@@ -274,11 +274,11 @@ func TestDetectLinkerRespectsPreferredLinker(t *testing.T) {
 	oldHasMold := hasMold
 	oldCache := toolPathCache
 	PreferredLinker = "mold"
-	linkerOnce = sync.Once{}
+	linkerOnce = &sync.Once{}
 	preferredLinker = ""
 	hasLld = false
 	hasMold = false
-	toolPathCache = sync.Map{}
+	toolPathCache = &sync.Map{}
 	defer func() {
 		PreferredLinker = old
 		linkerOnce = oldOnce
