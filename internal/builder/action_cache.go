@@ -30,6 +30,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	ch "github.com/forgezero-cli/ForgeZero/internal/drivers/chan"
 	spin "github.com/forgezero-cli/ForgeZero/internal/drivers/sync"
 	"github.com/forgezero-cli/ForgeZero/internal/hashpool"
 	"github.com/forgezero-cli/ForgeZero/internal/io_uring"
@@ -80,7 +81,7 @@ var (
 	l2Data       []byte
 	l2File       *os.File
 	l2Mutex      spin.SpinLock
-	jobQueue     chan actionCacheJob
+	jobQueue     *ch.MPSC
 	initOnce     sync.Once
 	preloadStart sync.Map
 	preloadWait  sync.WaitGroup
@@ -89,7 +90,7 @@ var (
 
 func actionCacheInit() {
 	initOnce.Do(func() {
-		jobQueue = make(chan actionCacheJob, 1024)
+		jobQueue = ch.NewMPSC(1 << 10)
 		workers := runtime.GOMAXPROCS(0)
 		if workers <= 0 {
 			workers = 1
@@ -101,12 +102,18 @@ func actionCacheInit() {
 }
 
 func actionCacheWorker() {
-	for job := range jobQueue {
-		if err := actionCacheStoreSync(job.inputs, job.action, job.outputs, job.env, job.cacheDir); err != nil {
-			_, _ = os.Stderr.WriteString("actionCacheStoreSync failed: ")
-			_, _ = os.Stderr.WriteString(err.Error())
-			_, _ = os.Stderr.WriteString("\n")
+	for {
+		if v, ok := jobQueue.Dequeue(); ok {
+			if job, ok2 := v.(actionCacheJob); ok2 {
+				if err := actionCacheStoreSync(job.inputs, job.action, job.outputs, job.env, job.cacheDir); err != nil {
+					_, _ = os.Stderr.WriteString("actionCacheStoreSync failed: ")
+					_, _ = os.Stderr.WriteString(err.Error())
+					_, _ = os.Stderr.WriteString("\n")
+				}
+			}
+			continue
 		}
+		runtime.Gosched()
 	}
 }
 
@@ -143,7 +150,7 @@ func actionCacheStore(ctx context.Context, inputs []string, action string, outpu
 		return nil
 	}
 	actionCacheInit()
-	jobQueue <- actionCacheJob{cacheDir: cacheDir, inputs: inputs, action: action, outputs: outputs, env: cacheEnv(ctx)}
+	_ = jobQueue.Enqueue(actionCacheJob{cacheDir: cacheDir, inputs: inputs, action: action, outputs: outputs, env: cacheEnv(ctx)})
 	return nil
 }
 
