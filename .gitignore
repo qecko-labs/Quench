@@ -7,6 +7,9 @@ fo.test
 # Just testing new idea
 ins
 linker.test
+# Report
+OPTIMIZATIONS.md
+internal/drivers/AUDIT.md
 
 *.prof
 # After delete
