@@ -19,6 +19,7 @@ package thread
 
 import (
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,7 @@ type Pool struct {
 	workers []*worker
 	next    atomic.Uint64
 	stop    atomic.Uint32
+	wg      sync.WaitGroup
 }
 
 func NewPool(size int) *Pool {
@@ -46,7 +48,9 @@ func NewPool(size int) *Pool {
 		q := ch.NewSPSC(1024)
 		w := &worker{q: q}
 		p.workers[i] = w
+		p.wg.Add(1)
 		go func(w *worker) {
+			defer p.wg.Done()
 			for p.stop.Load() == 0 {
 				if v, ok := w.q.Dequeue(); ok {
 					if t, ok2 := v.(Task); ok2 {
@@ -75,4 +79,5 @@ func (p *Pool) Submit(t Task) bool {
 
 func (p *Pool) Stop() {
 	p.stop.Store(1)
+	p.wg.Wait()
 }
