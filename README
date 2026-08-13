@@ -20,14 +20,14 @@ Zero magic. Maximum performance.
 If you want a black box, go use something else.
 If you want to control the box — welcome.
 
-## Quick Start
+Quick Start
 
 - Report a bug: https://github.com/qecko-labs/Quench/issues
 - Get the latest release: https://github.com/qecko-labs/Quench
 - Build Quench: See INSTALL
 - Build your project with qh: See QUICKSTART
 
-## Essential Documentation
+Essential Documentation
 
 All users should be familiar with:
 
@@ -38,7 +38,7 @@ All users should be familiar with:
 
 Full documentation index: INDEX
 
-# Who Are You?
+Who Are You?
 
 Find your role below:
 
@@ -52,9 +52,9 @@ Find your role below:
 - WebAssembly Developer - Building WASM targets
 - Contributor - Extending or fixing Quench itself
 
-# For Specific Users
+For Specific Users
 
-## New User
+New User
 
 Start here:
 
@@ -62,52 +62,52 @@ Start here:
 - Quick Start & Usage: QUICKSTART
 - Exit Codes & Troubleshooting: ERROR_HANDLING
 
-## Assembly Developer
+Assembly Developer
 
 - Build Modes & Extensions: LANGUAGES
 - Assembler Backends: SPECS
 - CLI Build Reference: CLI-REFERENCE
 
-## C / C++ / Objective-C Developer
+C / C++ / Objective-C Developer
 
 - Language Guide: LANGUAGES
 - Build Modes & Extensions: LANGUAGES
 - CLI Build Reference, Profiles & Linking: CLI-REFERENCE
 - Zig Backend: SPECS
 
-## Gloria Developer
+Gloria Developer
 
 - Gloria Language: LANGUAGES
 - Build Modes & Extensions: LANGUAGES
 
-## Security Auditor
+Security Auditor
 
 - Supply Chain Security (SBOM + SAST): SECURITY
 - Aegis Security Core: INTERNALS
 - Virtual Filesystem Layer (Aegis): INTERNALS
 
-## Release Engineer
+Release Engineer
 
 - Reproducible Builds, Verify, Bench: PERFORMANCE
 - Supply Chain Security: SECURITY
 
-## Cross-Compilation / Embedded Engineer
+Cross-Compilation / Embedded Engineer
 
 - Cross-Compilation Targets: WORKFLOW
 - Configuration File Reference: TOML_CONFIG
 
-## WebAssembly Developer
+WebAssembly Developer
 
 - WASM & Web Targets: WORKFLOW
 
-## Contributor
+Contributor
 
 - Project Tools (init, contribute, LSP, update): WORKFLOW
 - Doctor, Platform Readiness, Testing Standards: INTERNALS
 - HADES Engine, Contributing, License: INTERNALS
 - Roadmap: ARCHITECTURE
 
-# Performance
+Performance
 
 Measured against `nasm -f elf64 && ld` and `make -j4`, via hyperfine
 (warmup 3, >= 10 runs). Test system: Intel Core i5-10310U (4C/8T,
@@ -130,7 +130,7 @@ Stress test, 5000 C files, AMD Ryzen 7 PRO 4750U (16 threads):
 
 Full benchmark methodology and reproduction steps: PERFORMANCE
 
-# Communication and Support
+Communication and Support
 
 - Issues: https://github.com/qecko-labs/Quench/issues
 - Source: https://github.com/qecko-labs/Quench
