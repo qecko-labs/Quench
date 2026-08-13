@@ -19,12 +19,11 @@ package ch
 
 import (
 	"sync/atomic"
-	"unsafe"
 )
 
 type ringSlot struct {
 	sequence uint64
-	val      unsafe.Pointer
+	val      any
 }
 
 type MPSC struct {
@@ -54,8 +53,7 @@ func (q *MPSC) Enqueue(v any) bool {
 		slot := &q.slots[idx]
 		seq := atomic.LoadUint64(&slot.sequence)
 		if seq == tail {
-			p := unsafe.Pointer(&v)
-			slot.val = p
+			slot.val = v
 			atomic.StoreUint64(&slot.sequence, tail+1)
 			return true
 		}
@@ -73,7 +71,7 @@ func (q *MPSC) Dequeue() (any, bool) {
 	if seq != head+1 || slot.val == nil {
 		return nil, false
 	}
-	v := *(*any)(slot.val)
+	v := slot.val
 	slot.val = nil
 	atomic.StoreUint64(&slot.sequence, head+q.cap)
 	q.head = head + 1
