@@ -33,6 +33,7 @@ import (
 
 	"github.com/forgezero-cli/ForgeZero/internal/assembler"
 	"github.com/forgezero-cli/ForgeZero/internal/config"
+	ch "github.com/forgezero-cli/ForgeZero/internal/drivers/chan"
 	"github.com/forgezero-cli/ForgeZero/internal/drivers/fo"
 	"github.com/forgezero-cli/ForgeZero/internal/ignore"
 	"github.com/forgezero-cli/ForgeZero/internal/linker"
@@ -1149,7 +1150,7 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 	pool := fo.InitGlobalPool(jobs)
 	defer pool.Stop()
 
-	errCh := make(chan error, len(pairs))
+	errQ := ch.NewMPSC(len(pairs))
 	var wg sync.WaitGroup
 	for i := range pairs {
 		pairItem := pairs[i]
@@ -1160,7 +1161,7 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 			defer wg.Done()
 			pairArg := (*pair)(arg)
 			if err := buildOne(*pairArg); err != nil {
-				errCh <- err
+				_ = errQ.Enqueue(err)
 				return err
 			}
 			return nil
@@ -1168,17 +1169,22 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 		wg.Add(1)
 		if !pool.Submit(task) {
 			if err := task.Run(); err != nil {
-				errCh <- err
+				_ = errQ.Enqueue(err)
 			}
 		}
 	}
 	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		if cleanupObjDir {
-			_ = os.RemoveAll(objDir)
+	for {
+		if v, ok := errQ.Dequeue(); ok {
+			if err, ok2 := v.(error); ok2 {
+				if cleanupObjDir {
+					_ = os.RemoveAll(objDir)
+				}
+				return nil, err
+			}
+			continue
 		}
-		return nil, err
+		break
 	}
 
 	objFiles := make([]string, len(pairs))
