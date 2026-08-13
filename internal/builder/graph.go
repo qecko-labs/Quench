@@ -31,7 +31,7 @@ var (
 	errInvalidDependency = errors.New("invalid dependency index")
 	errDependencyCycle   = errors.New("dependency cycle detected")
 	topoScratchPool      = sync.Pool{New: func() any { return &topoScratch{} }}
-	topoOrderPool        = sync.Pool{New: func() any { s := make([]int, 0, 128); return &s }}
+	topoOrderPool        = sync.Pool{New: func() any { return new([]int) }}
 )
 
 type topoScratch struct {
