@@ -24,7 +24,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"unsafe"
 )
 
 func parseMakefileVars(path string) (map[string]string, error) {
@@ -164,7 +163,7 @@ func trimSpaceBytes(b []byte) []byte {
 }
 
 func bytesToString(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
+	return string(b)
 }
 
 func makefileCandidates(rootDir string) []string {
