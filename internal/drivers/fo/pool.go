@@ -330,7 +330,8 @@ func (w *worker) steal() (Task, bool) {
 		}
 	}
 	if w.owner != nil && w.owner.publicQ != nil {
-		var batch []Task
+		var batchArr [64]Task
+		batch := batchArr[:0]
 		for i := 0; i < 64; i++ {
 			if v, ok := w.owner.publicQ.Dequeue(); ok {
 				if t, ok2 := v.(Task); ok2 {
