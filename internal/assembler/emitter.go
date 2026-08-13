@@ -75,7 +75,7 @@ var parserPool = sync.Pool{
 	},
 }
 
-var emitterBufferPool = sync.Pool{New: func() any { b := make([]byte, 0, 65536); return &b }}
+var emitterBufferPool = sync.Pool{New: func() any { return new([]byte) }}
 
 var (
 	nameEmpty    = []byte("")
