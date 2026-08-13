@@ -38,7 +38,7 @@ func NewSPSC(capPow2 int) *SPSC {
 		cap <<= 1
 	}
 	s := &SPSC{cap: cap, mask: cap - 1, slots: make([]unsafe.Pointer, cap)}
-	s.pool.New = func() any { var v interface{}; return &v }
+	s.pool.New = func() any { return new(interface{}) }
 	return s
 }
 
