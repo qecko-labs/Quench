@@ -48,7 +48,7 @@ func SetupFlags() *Flags {
 	flag.BoolVar(&f.LibMode, "lib", false, "build static library (archive)")
 	flag.StringVar(&f.Target, "target", "x86_64-linux-gnu", "target triple")
 	flag.StringVar(&f.Toolchain, "toolchain", "auto", "toolchain to use: auto or zig")
-	flag.StringVar(&f.Linker, "linker", "", "force linker: auto, zig, gcc, clang, ld, lld, mold (overrides auto)")
+	flag.StringVar(&f.Linker, "linker", "", "force linker: auto, zig, gcc, clang, ld, lld, mold, gold (overrides auto)")
 	flag.StringVar(&f.Isolation, "isolation", "none", "isolation level: none, standard, strict")
 	flag.BoolVar(&f.GenCompileCommands, "compile-commands", false, "generate compile_commands.json for LSP and exit")
 	flag.BoolVar(&f.Shared, "shared", false, "build shared library instead of executable")
