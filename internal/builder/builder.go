@@ -12,7 +12,7 @@
  *   GNU General Public License for more details.
  *
  *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <https:pwww.gnu.org/licenses/>.
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package builder
@@ -1055,9 +1055,9 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].obj < pairs[j].obj })
 
-	_, err = buildDependencyGraph(pairs, rootDir)
-	if err != nil && verbose {
-		_, _ = os.Stdout.WriteString("Warning: could not build dependency graph: " + err.Error() + "; falling back to flat build\n")
+	graph, graphErr := buildDependencyGraph(pairs, rootDir)
+	if graphErr != nil && verbose {
+		_, _ = os.Stdout.WriteString("Warning: could not build dependency graph: " + graphErr.Error() + "; falling back to flat build\n")
 	}
 
 	if jobs <= 0 {
@@ -1150,41 +1150,50 @@ func buildDirInner(ctx context.Context, cfg *config.Config, dirs []string, outBi
 	pool := fo.InitGlobalPool(jobs)
 	defer pool.Stop()
 
-	errQ := ch.NewMPSC(len(pairs))
-	var wg sync.WaitGroup
-	for i := range pairs {
-		pairItem := pairs[i]
-		pairCopy := pairItem
-		pairPtr := new(pair)
-		*pairPtr = pairCopy
-		task := fo.Task{Fn: func(arg unsafe.Pointer) error {
-			defer wg.Done()
-			pairArg := (*pair)(arg)
-			if err := buildOne(*pairArg); err != nil {
-				_ = errQ.Enqueue(err)
-				return err
+	if graphErr == nil && len(graph) == len(pairs) {
+		if err := runDAGBuild(pool, pairs, graph, buildOne); err != nil {
+			if cleanupObjDir {
+				_ = os.RemoveAll(objDir)
 			}
-			return nil
-		}, Arg: unsafe.Pointer(pairPtr)}
-		wg.Add(1)
-		if !pool.Submit(task) {
-			if err := task.Run(); err != nil {
-				_ = errQ.Enqueue(err)
-			}
+			return nil, err
 		}
-	}
-	wg.Wait()
-	for {
-		if v, ok := errQ.Dequeue(); ok {
-			if err, ok2 := v.(error); ok2 {
-				if cleanupObjDir {
-					_ = os.RemoveAll(objDir)
+	} else {
+		errQ := ch.NewMPSC(len(pairs))
+		var wg sync.WaitGroup
+		for i := range pairs {
+			pairItem := pairs[i]
+			pairCopy := pairItem
+			pairPtr := new(pair)
+			*pairPtr = pairCopy
+			task := fo.Task{Fn: func(arg unsafe.Pointer) error {
+				defer wg.Done()
+				pairArg := (*pair)(arg)
+				if err := buildOne(*pairArg); err != nil {
+					_ = errQ.Enqueue(err)
+					return err
 				}
-				return nil, err
+				return nil
+			}, Arg: unsafe.Pointer(pairPtr)}
+			wg.Add(1)
+			if !pool.Submit(task) {
+				if err := task.Run(); err != nil {
+					_ = errQ.Enqueue(err)
+				}
 			}
-			continue
 		}
-		break
+		wg.Wait()
+		for {
+			if v, ok := errQ.Dequeue(); ok {
+				if err, ok2 := v.(error); ok2 {
+					if cleanupObjDir {
+						_ = os.RemoveAll(objDir)
+					}
+					return nil, err
+				}
+				continue
+			}
+			break
+		}
 	}
 
 	objFiles := make([]string, len(pairs))
