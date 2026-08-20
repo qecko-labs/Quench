@@ -23,7 +23,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unsafe"
 
+	"github.com/forgezero-cli/ForgeZero/internal/drivers/fo"
 	"github.com/forgezero-cli/ForgeZero/internal/utils"
 )
 
@@ -211,4 +213,78 @@ func remapDependencies(order []int, graph [][]int) [][]int {
 		}
 	}
 	return remapped
+}
+
+func runDAGBuild(pool *fo.Pool, pairs []pair, graph [][]int, buildOne func(pair) error) error {
+	n := len(pairs)
+	if n == 0 {
+		return nil
+	}
+	pending := make([]int, n)
+	dependents := make([][]int, n)
+	for i, deps := range graph {
+		if len(deps) > n {
+			return errInvalidDependency
+		}
+		pending[i] = len(deps)
+		for _, dep := range deps {
+			if dep < 0 || dep >= n {
+				return errInvalidDependency
+			}
+			dependents[dep] = append(dependents[dep], i)
+		}
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var buildErr error
+
+	var schedule func(int)
+	schedule = func(idx int) {
+		pairCopy := pairs[idx]
+		pairPtr := new(pair)
+		*pairPtr = pairCopy
+		wg.Add(1)
+		nodeIdx := idx
+		task := fo.Task{Fn: func(arg unsafe.Pointer) error {
+			defer wg.Done()
+			p := (*pair)(arg)
+			if err := buildOne(*p); err != nil {
+				mu.Lock()
+				if buildErr == nil {
+					buildErr = err
+				}
+				mu.Unlock()
+				return err
+			}
+			mu.Lock()
+			if buildErr == nil {
+				for _, child := range dependents[nodeIdx] {
+					pending[child]--
+					if pending[child] == 0 {
+						schedule(child)
+					}
+				}
+			}
+			mu.Unlock()
+			return nil
+		}, Arg: unsafe.Pointer(pairPtr)}
+		if pool == nil || !pool.Submit(task) {
+			if err := task.Run(); err != nil {
+				mu.Lock()
+				if buildErr == nil {
+					buildErr = err
+				}
+				mu.Unlock()
+			}
+		}
+	}
+
+	for i := 0; i < n; i++ {
+		if pending[i] == 0 {
+			schedule(i)
+		}
+	}
+	wg.Wait()
+	return buildErr
 }
