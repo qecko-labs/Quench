@@ -57,6 +57,7 @@ var (
 	preferredLinker string
 	hasLld          bool
 	hasMold         bool
+	hasGold         bool
 	toolPathCache   = &sync.Map{}
 	bufferPool      = sync.Pool{New: func() any { return new(bytes.Buffer) }}
 	extMap          = map[string]bool{
@@ -119,6 +120,8 @@ func detectLinker() {
 				hasLld = true
 			case "mold":
 				hasMold = true
+			case "gold":
+				hasGold = true
 			}
 			return
 		}
@@ -144,6 +147,9 @@ func getFuseLdFlag() string {
 	if preferredLinker == "mold" {
 		return "-fuse-ld=mold"
 	}
+	if preferredLinker == "gold" {
+		return "-fuse-ld=gold"
+	}
 	return ""
 }
 
@@ -152,6 +158,7 @@ func ResetLinkerDetection() {
 	preferredLinker = ""
 	hasLld = false
 	hasMold = false
+	hasGold = false
 	toolPathCache = &sync.Map{}
 }
 
@@ -245,7 +252,7 @@ func ensureContextTimeout(ctx context.Context, min time.Duration) (context.Conte
 
 func isLdExecutable(name string) bool {
 	base := filepath.Base(name)
-	if base == "ld" || base == "ld.lld" || base == "wasm-ld" || base == "mold" {
+	if base == "ld" || base == "ld.lld" || base == "ld.gold" || base == "wasm-ld" || base == "mold" {
 		return true
 	}
 	return strings.HasSuffix(base, "-ld")
