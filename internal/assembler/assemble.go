@@ -216,14 +216,26 @@ func getCompiler(src string) string {
 	return ccForTarget()
 }
 
-func assembleWithNasm(ctx context.Context, src, obj string, debug, verbose bool) error {
+func appendNasmFormatArgs(args []string, target string) []string {
+	fmtFlag := formatFlagForTargetWithTarget(target)
+	if fmtFlag == "" {
+		return args
+	}
+	if strings.HasPrefix(fmtFlag, "-f") && len(fmtFlag) > 2 {
+		return append(args, "-f", strings.TrimPrefix(fmtFlag, "-f"))
+	}
+	return append(args, fmtFlag)
+}
+
+func assembleWithNasm(ctx context.Context, src, obj string, debug, verbose bool, target string) error {
 	nasmPath := "nasm"
 	if path, err := exec.LookPath("nasm"); err == nil {
 		nasmPath = path
 	}
 
 	args := make([]string, 0, 8)
-	args = append(args, "-f", "elf64", "-o", obj)
+	args = appendNasmFormatArgs(args, target)
+	args = append(args, "-o", obj)
 	if debug {
 		args = append(args, "-g", "-F", "dwarf")
 	}
@@ -239,6 +251,28 @@ func assembleWithNasm(ctx context.Context, src, obj string, debug, verbose bool)
 	return err
 }
 
+func assembleWithFasm(ctx context.Context, src, obj string, verbose bool) error {
+	fasmPath := "fasm"
+	if path, err := exec.LookPath("fasm"); err == nil {
+		fasmPath = path
+	}
+	if len(AsmFlags) > 0 {
+		args := make([]string, 0, len(AsmFlags)+2)
+		args = append(args, src, obj)
+		args = append(args, AsmFlags...)
+		if verbose {
+			writeStderr("Running: " + fasmPath + " " + strings.Join(args, " ") + "\n")
+		}
+		_, err := runCommand(ctx, verbose, fasmPath, args...)
+		return err
+	}
+	if verbose {
+		writeStderr("Running: " + fasmPath + " " + src + " " + obj + "\n")
+	}
+	_, err := runCommand(ctx, verbose, fasmPath, src, obj)
+	return err
+}
+
 func Assemble(ctx context.Context, src, obj string, debug, verbose bool, mode string) error {
 	initAssemblerFlags()
 
@@ -248,9 +282,12 @@ func Assemble(ctx context.Context, src, obj string, debug, verbose bool, mode st
 	}
 
 	if verbose {
-		if UseNasm {
+		switch {
+		case UseNasm:
 			writeStderr("Using NASM for .asm files\n")
-		} else {
+		case ForceFASM:
+			writeStderr("Using FASM for .asm files\n")
+		default:
 			writeStderr("Using internal assembler for .asm files\n")
 		}
 	}
@@ -282,8 +319,13 @@ func Assemble(ctx context.Context, src, obj string, debug, verbose bool, mode st
 		if isWasmTargetWithTarget(target) {
 			return errors.New("cannot assemble .asm files for wasm target")
 		}
-		if strings.HasSuffix(src, ".asm") && UseNasm {
-			return assembleWithNasm(ctx, src, obj, debug, verbose)
+		if strings.HasSuffix(src, ".asm") {
+			if UseNasm {
+				return assembleWithNasm(ctx, src, obj, debug, verbose, target)
+			}
+			if ForceFASM {
+				return assembleWithFasm(ctx, src, obj, verbose)
+			}
 		}
 		return assembleRawASM(ctx, src, obj, target)
 	case ".s":
