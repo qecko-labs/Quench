@@ -29,7 +29,7 @@ type ringSlot struct {
 type MPSC struct {
 	cap   uint64
 	mask  uint64
-	head  uint64
+	head  atomic.Uint64
 	tail  atomic.Uint64
 	slots []ringSlot
 }
@@ -64,16 +64,23 @@ func (q *MPSC) Dequeue() (any, bool) {
 	if q == nil || len(q.slots) == 0 {
 		return nil, false
 	}
-	head := q.head
-	idx := head & q.mask
-	slot := &q.slots[idx]
-	seq := atomic.LoadUint64(&slot.sequence)
-	if seq != head+1 || slot.val == nil {
-		return nil, false
+	for {
+		head := q.head.Load()
+		idx := head & q.mask
+		slot := &q.slots[idx]
+		seq := atomic.LoadUint64(&slot.sequence)
+		if seq != head+1 {
+			return nil, false
+		}
+		if slot.val == nil {
+			return nil, false
+		}
+		if !q.head.CompareAndSwap(head, head+1) {
+			continue
+		}
+		v := slot.val
+		slot.val = nil
+		atomic.StoreUint64(&slot.sequence, head+q.cap)
+		return v, true
 	}
-	v := slot.val
-	slot.val = nil
-	atomic.StoreUint64(&slot.sequence, head+q.cap)
-	q.head = head + 1
-	return v, true
 }
