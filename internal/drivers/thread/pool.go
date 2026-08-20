@@ -29,7 +29,7 @@ import (
 type Task func()
 
 type worker struct {
-	q *ch.SPSC
+	q *ch.MPSC
 }
 
 type Pool struct {
@@ -45,21 +45,27 @@ func NewPool(size int) *Pool {
 	}
 	p := &Pool{workers: make([]*worker, size)}
 	for i := 0; i < size; i++ {
-		q := ch.NewSPSC(1024)
+		q := ch.NewMPSC(1024)
 		w := &worker{q: q}
 		p.workers[i] = w
 		p.wg.Add(1)
 		go func(w *worker) {
 			defer p.wg.Done()
+			idle := uint32(0)
 			for p.stop.Load() == 0 {
 				if v, ok := w.q.Dequeue(); ok {
+					idle = 0
 					if t, ok2 := v.(Task); ok2 {
 						t()
 					}
 					continue
 				}
-				runtime.Gosched()
-				time.Sleep(time.Microsecond)
+				idle++
+				if idle < 64 {
+					runtime.Gosched()
+					continue
+				}
+				time.Sleep(time.Microsecond << (idle & 7))
 			}
 		}(w)
 	}
