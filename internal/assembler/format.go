@@ -50,17 +50,21 @@ func SkipLinker() bool {
 }
 
 func formatFlagForTarget() string {
+	return formatFlagForTargetWithTarget(Target)
+}
+
+func formatFlagForTargetWithTarget(target string) string {
 	if IsBinFormat() {
 		return "-fbin"
 	}
 	switch {
-	case isWasmTarget():
+	case strings.Contains(target, "wasm") || strings.Contains(target, "wasm32"):
 		return ""
-	case strings.Contains(Target, "x86_64"):
+	case strings.Contains(target, "x86_64"):
 		return "-felf64"
-	case strings.Contains(Target, "i386") || strings.Contains(Target, "i686"):
+	case strings.Contains(target, "i386") || strings.Contains(target, "i686"):
 		return "-felf32"
-	case strings.Contains(Target, "arm"):
+	case strings.Contains(target, "arm"):
 		return "-march=armv7-a"
 	default:
 		return "-felf64"
